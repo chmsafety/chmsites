@@ -1,6 +1,6 @@
 // CHM 사업장 관리 — 서비스 워커 (앱 설치용)
 // 화면 파일과 아이콘만 저장한다. 사업장 데이터·사진·로그인(Supabase)은 절대 저장하지 않는다.
-const CACHE = 'chmsites-shell-v8';
+const CACHE = 'chmsites-shell-v9';
 const SHELL = ['./', './index.html', './manifest.json', './chmsites-192.png', './chmsites-512.png', './chmsites-maskable-512.png', './chmsites-180.png'];
 
 self.addEventListener('install', (e) => {
