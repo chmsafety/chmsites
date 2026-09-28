@@ -273,7 +273,7 @@ body{padding:0;overflow:hidden}
 var SB_URL='https://dbymktwxokbvfshlztrg.supabase.co';
 var SB_KEY='sb_publishable_RHDgmlGV-m946etnPHfXaw_vy2u8uCp';
 var DOMAIN='sites.chm.local';
-var VERSION='4단계 · 2026-09-29';
+var VERSION='5단계 · 2026-09-29';
 var IDLE_MIN=30;
 var CATS=['관리','사무지원','시설','보안','CS','미화'];
 var EQ_TYPES={'냉동기':['터보','흡수식','스크류','히트펌프','기타'],'보일러':['관류','노통연관','온수','전기','기타']};
@@ -602,7 +602,60 @@ function tabEquip(s,ed){
   return html+'<p class="muted" style="font-size:12px;margin:0">설비 종류는 설정 › 선택목록에서 추가합니다.</p>';
 }
 function kv(k,v,num){if(v===null||v===undefined||v==='')return '';return '<dt>'+esc(k)+'</dt><dd'+(num?' class="num"':'')+' style="white-space:pre-wrap">'+esc(v)+'</dd>';}
-function tabHist(s){return '<div class="empty">안전보건점검·산업재해·교육 이력은 5단계에서 기존 시스템과 연결해 자동으로 표시합니다.'+(s.aliases&&(s.aliases.edu||s.aliases.safety)?'<br>연동 별칭: '+esc([s.aliases.safety?'점검 「'+s.aliases.safety+'」':'',s.aliases.edu?'교육 「'+s.aliases.edu+'」':''].filter(Boolean).join(' · ')):'')+'</div>';}
+var SAFETY_URL='https://chmsafety.github.io/safety-inspection/',EDU_URL='https://chmsafety.github.io/chmedu/';
+S.hist={};
+function tabHist(s){
+  var h=S.hist[s.id];
+  if(!h){loadHist(s.id,false);return '<div class="loading" style="height:120px">기존 시스템에서 이력을 불러오는 중… (처음엔 10~30초 걸릴 수 있어요)</div>';}
+  if(h.loading)return '<div class="loading" style="height:120px">기존 시스템에서 이력을 불러오는 중… (처음엔 10~30초 걸릴 수 있어요)</div>';
+  if(h.error)return '<div class="empty">이력을 불러오지 못했습니다: '+esc(h.error)+'<br><button type="button" class="btn sm" style="margin-top:8px" data-act="hist-reload">다시 시도</button></div>';
+  var d=h.data,note='<span class="muted" style="font-size:12px">기준 '+esc(dt(d.fetched_at))+' · 1시간마다 새로 받음</span>';
+  var head='<div class="ph"><div>'+note+(d.warn?'<div class="err">'+esc(d.warn)+'</div>':'')+'</div><button type="button" class="btn sm" data-act="hist-reload">새로고침</button></div>';
+  var gradeChip=function(g){return '<span class="chip '+(g==='A'?'good':g==='B'?'acc':g==='C'?'warn':'bad')+'">'+esc(g)+'</span>';};
+  var none=function(t,err){return '<div class="empty">'+(err?'원본 시스템 오류: '+esc(err):esc(t))+'</div>';};
+  var insp=d.inspections.length?'<div class="tbl-wrap"><table><thead><tr><th>점검일</th><th>등급</th><th class="n">점수</th><th class="n">미흡</th><th>구분</th><th>점검자</th></tr></thead><tbody>'+d.inspections.map(function(r){return '<tr><td class="num">'+esc(r.date)+'</td><td>'+gradeChip(r.grade)+'</td><td class="n num">'+esc(r.score)+'</td><td class="n num">'+esc(r.bad)+'</td><td>'+esc(r.type)+'</td><td>'+esc(r.inspector)+'</td></tr>';}).join('')+'</tbody></table></div>':none('점검 기록이 없습니다.',d.errors.safety);
+  var fb=d.feedback?'<p style="margin:10px 0 0;font-size:13px">최근 개선 결과 ('+esc(d.feedback.date)+'): 미흡 '+d.feedback.total+'건 중 <b>'+d.feedback.done+'건 완료</b> '+(d.feedback.total&&d.feedback.done>=d.feedback.total?'<span class="chip good">완료</span>':'<span class="chip warn">진행 중</span>')+'</p>':'';
+  var acc=d.accidents.length?'<div class="tbl-wrap"><table><thead><tr><th>발생일</th><th>직군</th><th>재해유형</th><th>구분</th><th>진행상황</th><th class="n">휴직일수</th></tr></thead><tbody>'+d.accidents.map(function(r){return '<tr><td class="num">'+esc(r.date)+'</td><td>'+esc(r.job)+'</td><td>'+esc(r.type)+'</td><td>'+esc(r.category)+'</td><td><span class="chip">'+esc(r.status||'—')+'</span></td><td class="n num">'+(r.leaveDays==null?'—':esc(r.leaveDays))+'</td></tr>';}).join('')+'</tbody></table></div>':none('산업재해 기록이 없습니다.',d.errors.safety);
+  var edu=d.edu.length?'<div class="tbl-wrap"><table><thead><tr><th>교육일</th><th>과정</th><th>구분</th><th class="n">참석/대상</th><th class="n">평점</th><th>보고</th></tr></thead><tbody>'+d.edu.map(function(r){return '<tr><td class="num">'+esc(r.date)+'</td><td>'+esc(r.course)+'</td><td>'+esc(r.kind)+'</td><td class="n num">'+r.attend+'/'+r.target+'</td><td class="n num">'+(r.rating==null?'—':esc(r.rating))+'</td><td>'+(r.reported?'<span class="chip good">보고완료</span>':'<span class="chip">미보고</span>')+'</td></tr>';}).join('')+'</tbody></table></div>':none('교육 기록이 없습니다.',d.errors.edu);
+  var link=function(u){return '<a class="btn sm r" href="'+u+'" target="_blank" rel="noopener noreferrer">원본 시스템 ↗</a>';};
+  var nameHint=(!d.inspections.length&&!d.accidents.length&&!d.edu.length)?'<p class="muted" style="font-size:12px;margin:0">기록이 하나도 없다면 다른 시스템에서 사업장 이름이 다를 수 있어요. 관리자가 설정 › 이력 연동에서 이름을 맞추면 표시됩니다.</p>':'';
+  return head+
+   '<section class="card"><h3>안전보건점검 <span class="chip">'+d.inspections.length+'건</span>'+link(SAFETY_URL)+'</h3>'+insp+fb+'</section>'+
+   '<section class="card"><h3>산업재해 <span class="chip">'+d.accidents.length+'건</span><span class="muted" style="font-weight:400;font-size:12px">성명·사고내용은 표시하지 않음</span>'+link(SAFETY_URL)+'</h3>'+acc+'</section>'+
+   '<section class="card"><h3>교육 <span class="chip">'+d.edu.length+'건</span>'+link(EDU_URL)+'</h3>'+edu+'</section>'+nameHint;
+}
+async function loadHist(siteId,refresh){
+  S.hist[siteId]={loading:true};
+  try{var r=await sb.functions.invoke('site-history',{body:{site_id:siteId,refresh:!!refresh}});
+    if(r.error){var msg=r.error.message;try{var j=await r.error.context.json();if(j&&j.error)msg=j.error;}catch(e){}throw new Error(msg);}
+    S.hist[siteId]={data:r.data};}
+  catch(e){S.hist[siteId]={error:errMsg(e)};}
+  if(S.view==='sites'&&S.siteId===siteId&&S.tab==='hist'){var d=document.getElementById('detail');if(d){var sc=d.scrollTop;d.innerHTML=viewDetail();d.scrollTop=sc;}}
+}
+var normName=function(x){return String(x==null?'':x).toLowerCase().replace(/[\s()\-_.·/]/g,'');};
+async function loadHistNames(){
+  S.histNames={loading:true};
+  try{var r=await sb.functions.invoke('site-history',{body:{mode:'names'}});
+    if(r.error){var msg=r.error.message;try{var j=await r.error.context.json();if(j&&j.error)msg=j.error;}catch(e){}throw new Error(msg);}
+    S.histNames={data:r.data};}catch(e){S.histNames={error:errMsg(e)};}
+  if(S.view==='set'&&S.stab==='link'){S.keepScroll=true;render();}
+}
+function viewLink(){
+  var h=S.histNames;
+  if(!h){loadHistNames();return '<div class="loading" style="height:120px">불러오는 중…</div>';}
+  if(h.loading)return '<div class="loading" style="height:120px">불러오는 중… (처음엔 10~30초 걸릴 수 있어요)</div>';
+  if(h.error)return '<div class="empty">'+esc(h.error)+'<br><button type="button" class="btn sm" style="margin-top:8px" data-act="names-reload">다시 시도</button></div>';
+  var d=h.data;
+  var owner=function(src,name){var n=normName(name);return activeSites().filter(function(s){var al=(s.aliases||{})[src];var ks=[s.name].concat(al?String(al).split(','):[]).map(normName);return ks.indexOf(n)>=0;})[0];};
+  var block=function(src,title,map,err){
+    if(err)return '<section class="card"><h3>'+title+'</h3><div class="err">원본 시스템 오류: '+esc(err)+'</div></section>';
+    var names=Object.keys(map).sort(function(a,b){var oa=!!owner(src,a),ob=!!owner(src,b);return oa===ob?a.localeCompare(b,'ko'):(oa?1:-1);});
+    var miss=names.filter(function(n){return !owner(src,n);}).length;
+    return '<section class="card"><h3>'+title+' <span class="chip">'+names.length+'개 이름</span>'+(miss?'<span class="chip warn">연결 안 됨 '+miss+'</span>':'<span class="chip good">모두 연결</span>')+'</h3><div class="tbl-wrap"><table><thead><tr><th>그 시스템의 사업장 이름</th><th class="n">기록</th><th>이 앱의 사업장</th></tr></thead><tbody>'+
+      names.map(function(n){var o=owner(src,n);return '<tr><td><b>'+esc(n)+'</b></td><td class="n num">'+map[n]+'</td><td>'+(o?esc(o.name):'<span class="chip warn">연결 안 됨</span>')+'</td></tr>';}).join('')+'</tbody></table></div></section>';};
+  return '<section class="card"><h3>이력 연동 — 사업장 이름 맞추기<button type="button" class="btn sm r" data-act="names-reload">새로 받기</button></h3><p class="muted" style="font-size:12.5px;margin:0">안전보건점검·교육관리 시스템의 사업장 이름이 이 앱과 다르면 「연결 안 됨」으로 나와요. 설정 › 사업장·고객사에서 해당 사업장을 열어 「안전보건점검 시스템 이름」 또는 「교육관리 시스템 이름」에 그 이름을 적으면 연결됩니다. 여러 개는 쉼표로 구분해요. · 기준 '+esc(dt(d.fetched_at))+'</p>'+(d.warn?'<div class="err">'+esc(d.warn)+'</div>':'')+'</section>'+
+    block('safety','안전보건점검·산업재해',d.safety||{},d.errors&&d.errors.safety)+block('edu','교육관리 (CHM)',d.edu||{},d.errors&&d.errors.edu);
+}
 
 /* ---------- 방문기록 화면 ---------- */
 function viewVisits(){
@@ -618,7 +671,7 @@ function viewVisits(){
 var ACTION_LABEL={insert:'추가',update:'수정',delete:'삭제',login:'로그인',view_phone:'연락처 열람',account_create:'계정 발급',account_reset_password:'비밀번호 재설정',account_activate:'계정 재사용',account_deactivate:'계정 중지',account_update:'계정 수정',account_reset_mfa:'OTP 초기화'};
 var TBL_LABEL={site_sites:'사업장',site_contacts:'고객사 담당자',site_visits:'방문기록',site_managers:'관리자',site_staffing:'인원',site_equipment:'설비',site_notes:'메모',site_photos:'사진',site_members:'계정',site_assign:'담당 지정',site_clients:'고객사',site_codes:'선택목록'};
 function viewSet(){
-  var tabs=[['acct','계정'],['assign','담당 사업장'],['sites','사업장·고객사'],['codes','선택목록'],['audit','감사 로그']];
+  var tabs=[['acct','계정'],['assign','담당 사업장'],['sites','사업장·고객사'],['codes','선택목록'],['link','이력 연동'],['audit','감사 로그']];
   var b='';
   if(S.stab==='acct'){
     if(!S.locks){S.locks={};sb.rpc('site_locked_accounts').then(function(r){(r.data||[]).forEach(function(x){S.locks[x.login_id]=x;});if(S.view==='set'&&S.stab==='acct'){S.keepScroll=true;render();}});}
@@ -637,6 +690,8 @@ function viewSet(){
     b='<section class="card"><h3>사업장 <span class="chip">운영 '+activeSites().length+'곳</span>'+(arch.length?'<span class="chip">보관 '+arch.length+'곳</span>':'')+'<button type="button" class="btn sm r" data-act="site-add">'+I.plus+'사업장 추가</button></h3><div class="tbl-wrap"><table><thead><tr><th>사업장</th><th>고객사</th><th>연동 별칭(점검 / 교육)</th><th>상태</th><th></th></tr></thead><tbody>'+
       S.sites.map(function(s){var al=s.aliases||{};return '<tr><td><b>'+esc(s.name)+'</b></td><td>'+esc(clientName(s.client_id))+'</td><td class="muted">'+esc((al.safety||'—')+' / '+(al.edu||'—'))+'</td><td>'+(s.status==='운영'?'<span class="chip good">운영</span>':'<span class="chip">보관</span>')+'</td><td><button type="button" class="btn sm" data-act="site-edit" data-id="'+s.id+'">수정</button></td></tr>';}).join('')+'</tbody></table></div></section>'+
      '<section class="card"><h3>고객사 <span class="chip">'+S.clients.length+'곳</span><button type="button" class="btn sm r" data-act="client-add">'+I.plus+'고객사 추가</button></h3><div class="list2" style="display:flex;flex-wrap:wrap;gap:6px">'+S.clients.map(function(c){return '<button type="button" class="chip" data-act="client-edit" data-id="'+c.id+'">'+esc(c.name)+' · '+S.sites.filter(function(s){return s.client_id===c.id;}).length+'</button>';}).join('')+'</div></section>';
+  } else if(S.stab==='link'){
+    b=viewLink();
   } else if(S.stab==='codes'){
     var box=function(key,title,note){return '<section class="card"><h3>'+title+'</h3><div class="list2">'+codes(key,true).map(function(c){return '<button type="button" class="chip'+(c.active?'':' ex')+'" data-act="code-toggle" data-id="'+c.id+'" title="눌러서 '+(c.active?'숨기기':'다시 쓰기')+'">'+esc(c.label)+(c.active?'':' (숨김)')+'</button>';}).join('')+'</div><form class="addrow" data-code="'+key+'"><input id="code-'+key+'" placeholder="항목 추가" aria-label="'+title+' 추가" maxlength="30"><button class="btn sm">추가</button></form><p class="muted" style="font-size:12px;margin:8px 0 0">'+note+'</p></section>';};
     b='<div class="codes">'+box('manager_role','관리자 분류','항목을 누르면 숨김/다시 쓰기. 「직접입력」은 항상 제공')+box('equipment_kind','설비 종류','추가하면 설비현황 탭에 바로 나타남')+box('visit_purpose','방문목적','「기타」를 고르면 직접 입력')+'</div>';
@@ -835,7 +890,7 @@ function acctMenu(uid){
 function siteForm(s){
   var al=s&&s.aliases||{};
   openForm({title:s?'사업장 수정':'사업장 추가',fields:[{id:'name',label:'사업장명',required:true,value:s&&s.name},{id:'client',label:'고객사',type:'select',value:s?s.client_id:(S.clients[0]&&S.clients[0].id),options:S.clients.map(function(c){return{value:c.id,label:c.name};})},
-    [{id:'safety',label:'안전보건점검 시스템 이름',value:al.safety,placeholder:'같으면 비워 두기'},{id:'edu',label:'교육관리 시스템 이름',value:al.edu,placeholder:'같으면 비워 두기'}],
+    [{id:'safety',label:'안전보건점검 시스템 이름',value:al.safety,placeholder:'같으면 비워 두기 · 여러 개는 쉼표'},{id:'edu',label:'교육관리 시스템 이름',value:al.edu,placeholder:'같으면 비워 두기'}],
     s?{id:'archived',label:'보관 처리 (목록에서 숨김, 기록은 유지)',type:'check',value:s.status==='보관'}:{id:'x',type:'info',html:''}],
     onSave:async function(v){var aliases=Object.assign({},al);['safety','edu'].forEach(function(k){if(v[k])aliases[k]=v[k];else delete aliases[k];});
       var row={name:v.name,client_id:Number(v.client),aliases:aliases};
@@ -970,6 +1025,8 @@ app.addEventListener('click',async function(e){
     case 'site-edit':siteForm(byId(S.sites,id));return;
     case 'client-add':clientForm(null);return;
     case 'client-edit':clientForm(byId(S.clients,id));return;
+    case 'hist-reload':loadHist(S.siteId,true);document.getElementById('detail').innerHTML=viewDetail();return;
+    case 'names-reload':S.histNames=null;render();return;
     case 'audit-reload':S.audit=null;render();return;
     case 'photo-view':photoView(id);return;
     case 'install':doInstall();return;
