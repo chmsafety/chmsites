@@ -8,6 +8,11 @@
 <meta name="robots" content="noindex,nofollow">
 <meta name="theme-color" content="#0E6B5B">
 <title>CHM 사업장 관리</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="chmsites-192.png">
+<link rel="apple-touch-icon" href="chmsites-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="CHM Sites">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
@@ -246,6 +251,16 @@ body{padding:0;overflow:hidden}
 .nav button.it.only-phone{display:none}
 @container (max-width:720px){.nav button.it.only-phone{display:flex}}
 .login{overflow:auto;place-items:safe center;height:100%}
+.pstrip{display:flex;gap:6px;flex-wrap:wrap}
+.pthumb{width:68px;height:52px;border-radius:8px;overflow:hidden;border:1px solid var(--line);padding:0;background:var(--surface-2);display:grid;place-items:center;flex:none}
+.pthumb img{width:100%;height:100%;object-fit:cover;display:block}
+.pthumb.add{border-style:dashed;color:var(--accent-ink);font-size:11.5px;cursor:pointer;background:none}
+.pthumb.add:hover,.photo.face.add:hover{background:var(--accent-soft)}
+.pthumb:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.photo.face{padding:0;overflow:hidden;cursor:pointer;background:var(--surface-2)}
+.photo.face img{width:100%;height:100%;object-fit:cover;display:block}
+.photo.face.add{border-style:dashed;color:var(--accent-ink);background:none;font-size:11px}
+.pbig{width:100%;max-height:60vh;object-fit:contain;border-radius:8px;background:var(--surface-2)}
 
 </style>
 </head>
@@ -258,7 +273,7 @@ body{padding:0;overflow:hidden}
 var SB_URL='https://dbymktwxokbvfshlztrg.supabase.co';
 var SB_KEY='sb_publishable_RHDgmlGV-m946etnPHfXaw_vy2u8uCp';
 var DOMAIN='sites.chm.local';
-var VERSION='3단계 · 2026-09-29';
+var VERSION='4단계 · 2026-09-29';
 var IDLE_MIN=30;
 var CATS=['관리','사무지원','시설','보안','CS','미화'];
 var EQ_TYPES={'냉동기':['터보','흡수식','스크류','히트펌프','기타'],'보일러':['관류','노통연관','온수','전기','기타']};
@@ -310,8 +325,6 @@ var I={
 /* ---------- 인증 흐름 ---------- */
 function authCard(inner){app.innerHTML='<div class="login">'+inner+'</div>';}
 function brandHead(t,sub){return '<div style="display:flex;gap:10px;align-items:center"><span class="brand" style="padding:0"><span class="mk">CHM</span></span><div><h1>'+esc(t)+'</h1><span class="muted" style="font-size:12px">'+esc(sub)+'</span></div></div>';}
-function lockInfo(id){try{var o=JSON.parse(localStorage.getItem('chm-sites-lock')||'{}');return o[id]||{n:0,until:0};}catch(e){return{n:0,until:0};}}
-function setLock(id,v){try{var o=JSON.parse(localStorage.getItem('chm-sites-lock')||'{}');if(v)o[id]=v;else delete o[id];localStorage.setItem('chm-sites-lock',JSON.stringify(o));}catch(e){}}
 
 function showLogin(msg){
   authCard('<form class="lcard" id="fLogin" novalidate>'+brandHead('사업장 관리','CHM 내부 전용')+
@@ -323,13 +336,14 @@ function showLogin(msg){
   f.addEventListener('submit',async function(e){e.preventDefault();
     var id=document.getElementById('lid').value.trim().toLowerCase(),pw=document.getElementById('lpw').value,er=document.getElementById('lerr'),bt=document.getElementById('lbtn');
     if(!id||!pw){er.textContent='아이디와 비밀번호를 입력하세요.';return;}
-    var L=lockInfo(id);if(L.until>Date.now()){er.textContent='비밀번호를 5회 틀려 잠겼습니다. '+Math.ceil((L.until-Date.now())/60000)+'분 후 다시 시도하세요.';return;}
     bt.disabled=true;bt.textContent='확인 중…';er.textContent='';
-    var r=await sb.auth.signInWithPassword({email:id+'@'+DOMAIN,password:pw});
-    if(r.error){var n=(L.n||0)+1;setLock(id,n>=5?{n:0,until:Date.now()+15*60e3}:{n:n,until:0});
-      er.textContent=/banned/i.test(r.error.message)?'사용이 중지된 계정입니다. 관리자에게 문의하세요.':/invalid/i.test(r.error.message)?'아이디 또는 비밀번호가 틀렸습니다.'+(n<5?' ('+n+'/5)':''):errMsg(r.error);
-      bt.disabled=false;bt.textContent='로그인';return;}
-    setLock(id,null);try{sessionStorage.removeItem('chm-sites-rec');}catch(x){}
+    var res,j;
+    try{res=await fetch(SB_URL+'/functions/v1/site-login',{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_KEY},body:JSON.stringify({login_id:id,password:pw})});j=await res.json().catch(function(){return{};});}
+    catch(x){er.textContent='서버에 연결하지 못했습니다. 인터넷 연결을 확인하세요.';bt.disabled=false;bt.textContent='로그인';return;}
+    if(!res.ok||!j.access_token){er.textContent=j.error||'로그인하지 못했습니다.';bt.disabled=false;bt.textContent='로그인';return;}
+    var ss=await sb.auth.setSession({access_token:j.access_token,refresh_token:j.refresh_token});
+    if(ss.error){er.textContent=errMsg(ss.error);bt.disabled=false;bt.textContent='로그인';return;}
+    try{sessionStorage.removeItem('chm-sites-rec');}catch(x){}
     afterSignIn();});
 }
 
@@ -449,8 +463,10 @@ async function loadDetail(siteId,force){
     q(sb.from('site_contacts').select('*').eq('site_id',siteId).order('sort').order('id')),
     q(sb.from('site_notes').select('*').eq('site_id',siteId).order('note_date',{ascending:false}).order('id',{ascending:false})),
     q(sb.from('site_equipment').select('*').eq('site_id',siteId).order('id')),
-    q(sb.from('site_visits').select('*').eq('site_id',siteId).order('visit_date',{ascending:false}).order('id',{ascending:false}))]);
-  S.detail={contacts:r[0],notes:r[1],equip:r[2],visits:r[3]};S.detailFor=siteId;
+    q(sb.from('site_visits').select('*').eq('site_id',siteId).order('visit_date',{ascending:false}).order('id',{ascending:false})),
+    q(sb.from('site_photos').select('*').eq('site_id',siteId).order('id'))]);
+  S.detail={contacts:r[0],notes:r[1],equip:r[2],visits:r[3],photos:r[4]};S.detailFor=siteId;
+  await signPhotos(r[4]);
 }
 async function refreshSite(siteId){
   var r=await Promise.all([q(sb.from('site_sites').select('*').eq('id',siteId).single()),
@@ -469,7 +485,7 @@ function render(){
   if(!S.me)return showLogin();
   var nav=[['dash','대시보드'],['sites','사업장'],['visits','방문기록']];
   if(isAdmin())nav.push(['set','설정']);
-  var who='<b>'+esc(S.me.name)+' ('+esc(S.me.login_id)+')</b><span>'+(isAdmin()?'관리자 · 전체 입력·수정':'담당 사업장 '+S.me.sites.length+'곳 · 나머지는 조회만')+'</span><div class="actions"><button type="button" data-act="pw">비밀번호 변경</button><button type="button" data-act="logout">로그아웃</button></div>';
+  var who='<b>'+esc(S.me.name)+' ('+esc(S.me.login_id)+')</b><span>'+(isAdmin()?'관리자 · 전체 입력·수정':'담당 사업장 '+S.me.sites.length+'곳 · 나머지는 조회만')+'</span><div class="actions"><button type="button" data-act="pw">비밀번호 변경</button><button type="button" data-act="logout">로그아웃</button>'+installHtml()+'</div>';
   var main=S.view==='dash'?viewDash():S.view==='sites'?viewSites():S.view==='visits'?viewVisits():S.view==='set'?viewSet():viewDash();
   var sy=S.view==='sites'?null:(document.getElementById('main')||{}).scrollTop;
   app.innerHTML='<div class="shell"><nav class="nav" aria-label="메뉴"><div class="brand"><span class="mk">CHM</span><div><b>사업장 관리</b><small>운영 '+activeSites().length+'곳</small></div></div>'+
@@ -540,23 +556,24 @@ function viewDetail(){
 }
 function notesOf(type,id){return S.detail.notes.filter(function(n){return n.target_type===type&&n.target_id===id;});}
 function notesHtml(list,ed){if(!list.length)return '<div class="muted" style="font-size:12.5px">메모 없음</div>';
-  return '<div class="tl">'+list.map(function(n){return '<div class="tli"><span class="d">'+esc(n.note_date)+'</span><div class="c"><span style="white-space:pre-wrap">'+esc(n.body)+'</span><div class="meta"><span>작성 '+esc(memberName(n.created_by))+'</span>'+(ed?'<button type="button" class="linkbtn" data-act="note-edit" data-id="'+n.id+'">수정</button>':'')+'</div></div></div>';}).join('')+'</div>';}
+  return '<div class="tl">'+list.map(function(n){return '<div class="tli"><span class="d">'+esc(n.note_date)+'</span><div class="c"><span style="white-space:pre-wrap">'+esc(n.body)+'</span>'+photoStrip('note',n.id,ed)+'<div class="meta"><span>작성 '+esc(memberName(n.created_by))+'</span>'+(ed?'<button type="button" class="linkbtn" data-act="note-edit" data-id="'+n.id+'">수정</button>':'')+'</div></div></div>';}).join('')+'</div>';}
 function telBtn(kind,id,phone,who){if(!phone)return '<span class="muted">—</span>';return '<button type="button" class="tel" data-tel="'+kind+':'+id+'" data-full="'+esc(telFmt(phone))+'">'+esc(mask(phone))+'</button>';}
 
 function tabClient(s,ed){
   var cs=S.detail.contacts.filter(function(c){return c.active;}).map(function(c){
     return '<article class="card"><h3>'+esc(c.name)+' <span class="muted" style="font-weight:400">'+esc([c.dept,c.title].filter(Boolean).join(' · '))+'</span>'+(ed?'<span class="r actions"><button type="button" class="btn sm" data-act="note-add" data-type="contact" data-id="'+c.id+'">메모</button><button type="button" class="btn sm" data-act="contact-edit" data-id="'+c.id+'">수정</button></span>':'')+'</h3>'+
     '<dl class="kv" style="margin-bottom:12px"><dt>연락처</dt><dd>'+telBtn('contact',c.id,c.phone)+'</dd><dt>이메일</dt><dd>'+(c.email?esc(c.email):'<span class="muted">—</span>')+'</dd><dt>부서</dt><dd>'+(c.dept?esc(c.dept):'<span class="muted">—</span>')+'</dd></dl>'+
-    '<div style="font-size:12px;color:var(--ink-3);margin-bottom:4px">미팅 기록 · 메모</div>'+notesHtml(notesOf('contact',c.id),ed)+'</article>';}).join('');
+    '<div style="font-size:12px;color:var(--ink-3);margin-bottom:4px">명함 사진</div>'+photoStrip('contact_card',c.id,ed,'명함 사진이 없습니다')+
+    '<div style="font-size:12px;color:var(--ink-3);margin:12px 0 4px">미팅 기록 · 메모</div>'+notesHtml(notesOf('contact',c.id),ed)+'</article>';}).join('');
   return '<section class="card"><h3>고객사</h3><dl class="kv"><dt>고객사명</dt><dd><b>'+esc(clientName(s.client_id))+'</b></dd><dt>담당자</dt><dd>'+S.detail.contacts.filter(function(c){return c.active;}).length+'명</dd></dl></section>'+
    '<div class="ph"><h3 style="font-size:14px">담당자 정보</h3>'+(ed?'<button type="button" class="btn sm" data-act="contact-add">'+I.plus+'담당자 추가</button>':'')+'</div>'+
-   (cs||'<div class="empty">등록된 고객사 담당자가 없습니다.</div>')+'<p class="muted" style="font-size:12px;margin:0">명함 사진은 4단계(사진 기능)에서 추가됩니다.</p>';
+   (cs||'<div class="empty">등록된 고객사 담당자가 없습니다.</div>');
 }
 function tabBasic(s,ed){
   var vs=S.detail.visits;var fl=[s.floors_above?'지상 '+s.floors_above+'층':'',s.floors_below?'지하 '+s.floors_below+'층':''].filter(Boolean).join(' / ');
-  return '<section class="card"><h3>기본현황'+(ed?'<button type="button" class="btn sm r" data-act="basic-edit">수정</button>':'')+'</h3><dl class="kv"><dt>주소</dt><dd>'+(s.addr?esc(s.addr):'<span class="muted">미입력</span>')+'</dd><dt>연면적</dt><dd>'+(s.area_m2?'<span class="num">'+fmt(s.area_m2)+'</span> ㎡':'<span class="muted">미입력</span>')+'</dd><dt>층수</dt><dd>'+(fl?esc(fl):'<span class="muted">미입력</span>')+'</dd>'+(s.memo?'<dt>메모</dt><dd style="white-space:pre-wrap">'+esc(s.memo)+'</dd>':'')+'</dl></section>'+
+  return '<section class="card"><h3>기본현황'+(ed?'<button type="button" class="btn sm r" data-act="basic-edit">수정</button>':'')+'</h3><dl class="kv"><dt>주소</dt><dd>'+(s.addr?esc(s.addr):'<span class="muted">미입력</span>')+'</dd><dt>연면적</dt><dd>'+(s.area_m2?'<span class="num">'+fmt(s.area_m2)+'</span> ㎡':'<span class="muted">미입력</span>')+'</dd><dt>층수</dt><dd>'+(fl?esc(fl):'<span class="muted">미입력</span>')+'</dd>'+(s.memo?'<dt>메모</dt><dd style="white-space:pre-wrap">'+esc(s.memo)+'</dd>':'')+'</dl><div style="font-size:12px;color:var(--ink-3);margin:12px 0 4px">현장 사진</div>'+photoStrip('site',s.id,ed,'현장 사진이 없습니다')+'</section>'+
    '<section class="card"><h3>방문기록 <span class="chip">'+vs.length+'건</span>'+(ed?'<button type="button" class="btn sm r" data-act="visit-add">'+I.plus+'방문기록</button>':'')+'</h3>'+
-   (vs.length?'<div class="tl">'+vs.map(function(v){return '<div class="tli"><span class="d">'+esc(v.visit_date)+'</span><div class="c"><div class="meta"><span class="chip acc">'+esc(purposeText(v))+'</span>'+(v.attendee?'<span>미팅자 '+esc(v.attendee)+'</span>':'')+'<span>· 작성 '+esc(memberName(v.created_by))+'</span>'+(ed?'<button type="button" class="linkbtn" data-act="visit-edit" data-id="'+v.id+'">수정</button>':'')+'</div><span style="white-space:pre-wrap">'+esc(v.content)+'</span></div></div>';}).join('')+'</div>':'<div class="empty">방문기록이 없습니다.</div>')+'</section>';
+   (vs.length?'<div class="tl">'+vs.map(function(v){return '<div class="tli"><span class="d">'+esc(v.visit_date)+'</span><div class="c"><div class="meta"><span class="chip acc">'+esc(purposeText(v))+'</span>'+(v.attendee?'<span>미팅자 '+esc(v.attendee)+'</span>':'')+'<span>· 작성 '+esc(memberName(v.created_by))+'</span>'+(ed?'<button type="button" class="linkbtn" data-act="visit-edit" data-id="'+v.id+'">수정</button>':'')+'</div><span style="white-space:pre-wrap">'+esc(v.content)+'</span>'+photoStrip('visit',v.id,ed)+'</div></div>';}).join('')+'</div>':'<div class="empty">방문기록이 없습니다.</div>')+'</section>';
 }
 function tabStaff(s,ed){
   var zones=zonesOf(s.id);var multi=zones.length>1||(zones.length===1&&zones[0]!=='');
@@ -565,7 +582,7 @@ function tabStaff(s,ed){
   var rows=CATS.map(function(c,k){tt[0]+=a[k][0];tt[1]+=a[k][1];if(!a[k][0]&&!a[k][1])return '';var g=a[k][1]-a[k][0];return '<tr><td>'+c+'</td><td class="n num">'+a[k][0]+'</td><td class="n num">'+a[k][1]+'</td><td class="n num" style="color:'+(g<0?'var(--bad)':'var(--ink-3)')+'">'+(g>0?'+'+g:g)+'</td></tr>';}).join('');
   var bd=baseDateOf(s.id);
   var ms=S.managers.filter(function(m){return m.site_id===s.id;}).sort(function(x,y){return (y.active-x.active)||(x.sort-y.sort)||(x.id-y.id);}).map(function(m){var ns=notesOf('manager',m.id);var role=m.role==='직접입력'&&m.role_etc?m.role_etc:m.role;
-    return '<article class="person"'+(m.active?'':' style="opacity:.6"')+'><span class="photo">'+(m.photo_consent_on?'사진':'—')+'</span><span class="pn"><span class="chip acc">'+esc(role)+'</span>'+esc(m.name)+(m.active?'':' <span class="chip">퇴직·전보</span>')+'</span><span class="pr">'+telBtn('manager',m.id,m.phone)+'</span><span class="pr">'+(m.photo_consent_on?'<span class="chip good">사진 동의 '+esc(m.photo_consent_on)+'</span>':'<span class="chip warn">사진 동의 전</span>')+'</span>'+
+    return '<article class="person"'+(m.active?'':' style="opacity:.6"')+'>'+faceSlot(m,ed)+'<span class="pn"><span class="chip acc">'+esc(role)+'</span>'+esc(m.name)+(m.active?'':' <span class="chip">퇴직·전보</span>')+'</span><span class="pr">'+telBtn('manager',m.id,m.phone)+'</span><span class="pr">'+(m.photo_consent_on?'<span class="chip good">사진 동의 '+esc(m.photo_consent_on)+'</span>':'<span class="chip warn">사진 동의 전</span>')+'</span>'+
      (ns.length?'<span class="pr" style="grid-column:1/-1;margin-top:6px;border-top:1px solid var(--line);padding-top:6px">'+esc(ns[0].note_date)+' · '+esc(ns[0].body)+(ns.length>1?' <span class="muted">외 '+(ns.length-1)+'건</span>':'')+'</span>':'')+
      (ed?'<span class="pa"><button type="button" class="btn sm" data-act="note-add" data-type="manager" data-id="'+m.id+'">메모</button><button type="button" class="btn sm" data-act="manager-edit" data-id="'+m.id+'">수정</button>'+(ns.length?'<button type="button" class="btn sm" data-act="notes-view" data-type="manager" data-id="'+m.id+'">메모 전체</button>':'')+'</span>':(ns.length?'<span class="pa"><button type="button" class="btn sm" data-act="notes-view" data-type="manager" data-id="'+m.id+'">메모 전체</button></span>':''))+'</article>';}).join('');
   return '<section class="card"><h3>직군별 인원 <span class="muted" style="font-weight:400;font-size:12px">'+(bd?'기준일 '+esc(bd):'자료 없음')+'</span>'+(ed?'<button type="button" class="btn sm r" data-act="staff-edit">인원 수정</button>':'')+'</h3>'+
@@ -581,8 +598,8 @@ function tabEquip(s,ed){
     html+='<div class="ph"><h3 style="font-size:14px">'+esc(k.label)+' <span class="chip">'+list.reduce(function(a,e){return a+(e.qty||0);},0)+'대</span></h3>'+(ed?'<button type="button" class="btn sm" data-act="equip-add" data-kind="'+esc(k.label)+'">'+I.plus+esc(k.label)+' 추가</button>':'')+'</div>';
     html+=list.length?'<div class="equip">'+list.map(function(e){var ex=EQ_EXTRA[e.kind];var exv=e.extra&&ex?e.extra[ex]:'';
       return '<article class="eq"><div class="eh"><b>'+esc((e.type?e.type+' ':'')+e.kind)+'</b><span class="chip">'+(e.qty||0)+'대</span>'+(ed?'<button type="button" class="btn sm" style="margin-left:auto" data-act="equip-edit" data-id="'+e.id+'">수정</button>':'')+'</div><div class="eb"><dl class="kv">'+
-      kv('제조사',e.maker)+kv('모델',e.model,true)+kv('용량',e.capacity,true)+kv('설치년도',e.install_year,true)+(ex?kv(ex,exv):'')+kv('유지보수',e.vendor)+kv('메모',e.memo)+'</dl></div></article>';}).join('')+'</div>':'<div class="empty">등록된 '+esc(k.label)+'가 없습니다.</div>';});
-  return html+'<p class="muted" style="font-size:12px;margin:0">설비 종류는 설정 › 선택목록에서 추가합니다. 설비 사진은 4단계에서 추가됩니다.</p>';
+      kv('제조사',e.maker)+kv('모델',e.model,true)+kv('용량',e.capacity,true)+kv('설치년도',e.install_year,true)+(ex?kv(ex,exv):'')+kv('유지보수',e.vendor)+kv('메모',e.memo)+'</dl>'+photoStrip('equipment',e.id,ed)+'</div></article>';}).join('')+'</div>':'<div class="empty">등록된 '+esc(k.label)+'가 없습니다.</div>';});
+  return html+'<p class="muted" style="font-size:12px;margin:0">설비 종류는 설정 › 선택목록에서 추가합니다.</p>';
 }
 function kv(k,v,num){if(v===null||v===undefined||v==='')return '';return '<dt>'+esc(k)+'</dt><dd'+(num?' class="num"':'')+' style="white-space:pre-wrap">'+esc(v)+'</dd>';}
 function tabHist(s){return '<div class="empty">안전보건점검·산업재해·교육 이력은 5단계에서 기존 시스템과 연결해 자동으로 표시합니다.'+(s.aliases&&(s.aliases.edu||s.aliases.safety)?'<br>연동 별칭: '+esc([s.aliases.safety?'점검 「'+s.aliases.safety+'」':'',s.aliases.edu?'교육 「'+s.aliases.edu+'」':''].filter(Boolean).join(' · ')):'')+'</div>';}
@@ -604,9 +621,10 @@ function viewSet(){
   var tabs=[['acct','계정'],['assign','담당 사업장'],['sites','사업장·고객사'],['codes','선택목록'],['audit','감사 로그']];
   var b='';
   if(S.stab==='acct'){
+    if(!S.locks){S.locks={};sb.rpc('site_locked_accounts').then(function(r){(r.data||[]).forEach(function(x){S.locks[x.login_id]=x;});if(S.view==='set'&&S.stab==='acct'){S.keepScroll=true;render();}});}
     b='<section class="card"><h3>계정 <span class="chip">'+S.members.length+'개</span><span class="muted" style="font-weight:400;font-size:12px">삭제 없이 사용 중지만 · 관리자는 OTP 필수</span><button type="button" class="btn sm r" data-act="acct-add">'+I.plus+'계정 발급</button></h3><div class="tbl-wrap"><table><thead><tr><th>아이디</th><th>이름</th><th>권한</th><th class="n">담당</th><th>상태</th><th>마지막 로그인</th><th></th></tr></thead><tbody>'+
      S.members.map(function(m){var n=m.role==='admin'?'전체':S.assign.filter(function(a){return a.user_id===m.user_id;}).length;
-       return '<tr><td class="num">'+esc(m.login_id)+'</td><td>'+esc(m.name)+'</td><td><span class="chip '+(m.role==='admin'?'acc':'')+'">'+(m.role==='admin'?'관리자':'일반')+'</span></td><td class="n num">'+n+'</td><td>'+(m.active?(m.must_change_pw?'<span class="chip warn">첫 로그인 전</span>':'<span class="chip good">사용</span>'):'<span class="chip">중지</span>')+'</td><td class="num muted">'+dt(m.last_login_at)+'</td><td><button type="button" class="btn sm" data-act="acct-menu" data-id="'+m.user_id+'">관리</button></td></tr>';}).join('')+'</tbody></table></div></section>';
+       return '<tr><td class="num">'+esc(m.login_id)+'</td><td>'+esc(m.name)+'</td><td><span class="chip '+(m.role==='admin'?'acc':'')+'">'+(m.role==='admin'?'관리자':'일반')+'</span></td><td class="n num">'+n+'</td><td>'+(lockChip(m.login_id))+(m.active?(m.must_change_pw?'<span class="chip warn">첫 로그인 전</span>':'<span class="chip good">사용</span>'):'<span class="chip">중지</span>')+'</td><td class="num muted">'+dt(m.last_login_at)+'</td><td><button type="button" class="btn sm" data-act="acct-menu" data-id="'+m.user_id+'">관리</button></td></tr>';}).join('')+'</tbody></table></div></section>';
   } else if(S.stab==='assign'){
     var users=S.members.filter(function(m){return m.role!=='admin';});
     if(!users.length)b='<div class="empty">일반계정이 없습니다. 계정 탭에서 먼저 발급하세요.</div>';
@@ -684,14 +702,14 @@ function contactForm(c){
   var sid=S.siteId;
   openForm({title:c?'고객사 담당자 수정':'고객사 담당자 추가',fields:[[{id:'name',label:'성함',required:true,value:c&&c.name},{id:'title',label:'직책',value:c&&c.title,placeholder:'과장'}],
     {id:'dept',label:'부서',value:c&&c.dept,placeholder:'총무팀'},[{id:'phone',label:'연락처',type:'tel',inputmode:'tel',value:c&&telFmt(c.phone),placeholder:'010-0000-0000'},{id:'email',label:'이메일',type:'email',value:c&&c.email}]],
-    deleteLabel:'삭제',onDelete:c?async function(){await q(sb.from('site_contacts').delete().eq('id',c.id));await afterSave('담당자를 삭제했습니다',sid);}:null,
+    deleteLabel:'삭제',onDelete:c?async function(){await removePhotosFor('contact_card',c.id);await removeNotesFor('contact',c.id);await q(sb.from('site_contacts').delete().eq('id',c.id));await afterSave('담당자를 삭제했습니다',sid);}:null,
     onSave:async function(v){var row={site_id:sid,name:v.name,title:v.title||null,dept:v.dept||null,phone:v.phone?v.phone.replace(/[^0-9]/g,''):null,email:v.email||null};
       if(c)await q(sb.from('site_contacts').update(row).eq('id',c.id));else await q(sb.from('site_contacts').insert(row));await afterSave('저장했습니다',sid);}});
 }
 function noteForm(type,targetId,n){
   var sid=S.siteId;
   openForm({title:n?'메모 수정':'메모 추가',fields:[{id:'note_date',label:'날짜',type:'date',required:true,value:n?n.note_date:today()},{id:'body',label:'내용',type:'textarea',required:true,value:n&&n.body,placeholder:'미팅 내용, 요청사항, 특이사항'}],
-    onDelete:n?async function(){await q(sb.from('site_notes').delete().eq('id',n.id));await afterSave('메모를 삭제했습니다',sid);}:null,
+    onDelete:n?async function(){await removePhotosFor('note',n.id);await q(sb.from('site_notes').delete().eq('id',n.id));await afterSave('메모를 삭제했습니다',sid);}:null,
     onSave:async function(v){if(n)await q(sb.from('site_notes').update({note_date:v.note_date,body:v.body}).eq('id',n.id));
       else await q(sb.from('site_notes').insert({site_id:sid,target_type:type,target_id:targetId,note_date:v.note_date,body:v.body}));await afterSave('메모를 저장했습니다',sid);}});
 }
@@ -719,7 +737,7 @@ function visitForm(v,anySite){
   fields.push({id:'content',label:'방문내용',type:'textarea',required:true,value:v&&v.content,placeholder:'논의한 내용, 요청사항, 후속 조치'});
   openForm({title:v?'방문기록 수정':'방문기록 추가',fields:fields,
     onChange:function(e,val){if(e.target.id==='f_purpose'){var w=document.querySelector('[data-wrap="purpose_etc"]');if(w)w.hidden=val.purpose!=='기타';}},
-    onDelete:v?async function(){await q(sb.from('site_visits').delete().eq('id',v.id));await afterSave('방문기록을 삭제했습니다',sid);}:null,
+    onDelete:v?async function(){await removePhotosFor('visit',v.id);await q(sb.from('site_visits').delete().eq('id',v.id));await afterSave('방문기록을 삭제했습니다',sid);}:null,
     onSave:async function(x){var site=anySite?Number(x.site):sid;var row={site_id:site,visit_date:x.visit_date,purpose:x.purpose,purpose_etc:x.purpose==='기타'?(x.purpose_etc||null):null,attendee:x.attendee||null,content:x.content};
       if(v)await q(sb.from('site_visits').update(row).eq('id',v.id));else await q(sb.from('site_visits').insert(row));
       if(anySite){toast('방문기록을 저장했습니다');S.visits=await q(sb.from('site_visits').select('*').order('visit_date',{ascending:false}).order('id',{ascending:false}).limit(500));S.detailFor=null;S.keepScroll=true;render();}
@@ -732,10 +750,11 @@ function managerForm(m){
      {id:'consent',label:'얼굴 사진 촬영·보관에 본인이 동의함',type:'check',value:!!(m&&m.photo_consent_on)},
      {id:'active',label:'현재 근무 중',type:'check',value:m?m.active:true}],
     onChange:function(e,val){if(e.target.id==='f_role'){var w=document.querySelector('[data-wrap="role_etc"]');if(w)w.hidden=val.role!=='직접입력';}},
-    onDelete:m?async function(){await q(sb.from('site_managers').delete().eq('id',m.id));await afterSave('관리자를 삭제했습니다',sid);}:null,
+    onDelete:m?async function(){await removePhotosFor('manager_face',m.id);await removeNotesFor('manager',m.id);await q(sb.from('site_managers').delete().eq('id',m.id));await afterSave('관리자를 삭제했습니다',sid);}:null,
     onSave:async function(v){if(v.role==='직접입력'&&!v.role_etc)throw new Error('직접입력 분류를 적어 주세요.');
       var row={site_id:sid,role:v.role,role_etc:v.role==='직접입력'?v.role_etc:null,name:v.name,phone:v.phone?v.phone.replace(/[^0-9]/g,''):null,active:v.active,
         photo_consent_on:v.consent?(m&&m.photo_consent_on?m.photo_consent_on:today()):null};
+      if(m&&m.photo_consent_on&&!row.photo_consent_on)await removePhotosFor('manager_face',m.id);
       if(m)await q(sb.from('site_managers').update(row).eq('id',m.id));else await q(sb.from('site_managers').insert(row));await afterSave('저장했습니다',sid);}});
 }
 function equipForm(e,kind){
@@ -747,7 +766,7 @@ function equipForm(e,kind){
   else f.push({id:'vendor',label:'유지보수 업체',value:e&&e.vendor});
   f.push({id:'memo',label:'메모',type:'textarea',rows:3,value:e&&e.memo});
   openForm({title:kind+(e?' 수정':' 추가'),fields:f,
-    onDelete:e?async function(){await q(sb.from('site_equipment').delete().eq('id',e.id));await afterSave('설비를 삭제했습니다',sid);}:null,
+    onDelete:e?async function(){await removePhotosFor('equipment',e.id);await q(sb.from('site_equipment').delete().eq('id',e.id));await afterSave('설비를 삭제했습니다',sid);}:null,
     onSave:async function(v){var extra=Object.assign({},e&&e.extra||{});if(ex){if(v.extra)extra[ex]=v.extra;else delete extra[ex];}
       var row={site_id:sid,kind:kind,type:v.type||null,qty:int(v.qty)||0,maker:v.maker||null,model:v.model||null,capacity:v.capacity||null,install_year:int(v.year),extra:extra,vendor:v.vendor||null,memo:v.memo||null};
       if(e)await q(sb.from('site_equipment').update(row).eq('id',e.id));else await q(sb.from('site_equipment').insert(row));await afterSave('설비를 저장했습니다',sid);}});
@@ -791,7 +810,7 @@ function pwShown(title,login,pw){
     onSave:async function(){try{await navigator.clipboard.writeText(pw);toast('복사했습니다');}catch(e){toast('복사하지 못했습니다. 직접 선택해 복사하세요');return false;}}});
   m.querySelector('[data-close]').textContent='닫기';
 }
-async function reloadMembers(){var r=await Promise.all([q(sb.from('site_members').select('user_id,login_id,name,role,active,must_change_pw,last_login_at,created_at').order('created_at')),q(sb.from('site_assign').select('user_id,site_id'))]);S.members=r[0];S.assign=r[1];S.me.sites=S.assign.filter(function(a){return a.user_id===S.me.user_id;}).map(function(a){return a.site_id;});}
+async function reloadMembers(){S.locks=null;var r=await Promise.all([q(sb.from('site_members').select('user_id,login_id,name,role,active,must_change_pw,last_login_at,created_at').order('created_at')),q(sb.from('site_assign').select('user_id,site_id'))]);S.members=r[0];S.assign=r[1];S.me.sites=S.assign.filter(function(a){return a.user_id===S.me.user_id;}).map(function(a){return a.site_id;});}
 function acctAdd(){
   var pw=randPw();
   openForm({title:'계정 발급',fields:[[{id:'login',label:'아이디',required:true,placeholder:'영문 소문자·숫자 3~30자',maxlength:30},{id:'name',label:'이름',required:true}],{id:'role',label:'권한',type:'select',value:'user',options:[{value:'user',label:'일반 (담당 사업장만 입력)'},{value:'admin',label:'관리자 (OTP 필수)'}]},
@@ -802,12 +821,13 @@ function acctAdd(){
 function acctMenu(uid){
   var t=S.members.filter(function(m){return m.user_id===uid;})[0];if(!t)return;var self=uid===S.me.user_id;
   var m=openForm({title:t.login_id+' · '+t.name,fields:[[{id:'name',label:'이름',required:true,value:t.name},{id:'role',label:'권한',type:'select',value:t.role,options:[{value:'user',label:'일반'},{value:'admin',label:'관리자'}]}],
-    {id:'x',type:'info',html:'<div class="actions"><button type="button" class="btn sm" data-a="pw">비밀번호 재설정</button>'+(t.role==='admin'&&!self?'<button type="button" class="btn sm" data-a="mfa">OTP 초기화</button>':'')+(!self?'<button type="button" class="btn sm '+(t.active?'danger':'')+'" data-a="act">'+(t.active?'사용 중지':'다시 사용')+'</button>':'')+'</div>'}],
+    {id:'x',type:'info',html:'<div class="actions"><button type="button" class="btn sm" data-a="pw">비밀번호 재설정</button>'+(isLocked(t.login_id)?'<button type="button" class="btn sm" data-a="unlock">잠금 해제</button>':'')+(t.role==='admin'&&!self?'<button type="button" class="btn sm" data-a="mfa">OTP 초기화</button>':'')+(!self?'<button type="button" class="btn sm '+(t.active?'danger':'')+'" data-a="act">'+(t.active?'사용 중지':'다시 사용')+'</button>':'')+'</div>'}],
     onSave:async function(v){await adminCall({action:'update',user_id:uid,name:v.name,role:v.role});await reloadMembers();S.keepScroll=true;render();toast('계정을 저장했습니다');}});
   m.addEventListener('click',async function(e){var a=e.target.getAttribute&&e.target.getAttribute('data-a');if(!a)return;var bt=e.target;
     if(!bt.classList.contains('arm')){m.querySelectorAll('[data-a]').forEach(function(x){x.classList.remove('arm');});bt.classList.add('arm');bt.dataset.t=bt.textContent;bt.textContent='한 번 더 누르면 실행';return;}
     bt.disabled=true;
     try{if(a==='pw'){var pw=randPw();await adminCall({action:'reset_password',user_id:uid,password:pw});await reloadMembers();render();pwShown('비밀번호를 재설정했습니다',t.login_id,pw);}
+      else if(a==='unlock'){await adminCall({action:'unlock',user_id:uid});await reloadMembers();closeModal();S.keepScroll=true;render();toast('잠금을 해제했습니다');}
       else if(a==='mfa'){await adminCall({action:'reset_mfa',user_id:uid});closeModal();toast('OTP를 초기화했습니다. 다음 로그인 때 새로 등록합니다');}
       else{await adminCall({action:'set_active',user_id:uid,active:!t.active});await reloadMembers();closeModal();S.keepScroll=true;render();toast(t.active?'사용을 중지했습니다':'다시 사용하도록 바꿨습니다');}}
     catch(x){document.getElementById('merr').textContent=errMsg(x);bt.disabled=false;bt.textContent=bt.dataset.t;bt.classList.remove('arm');}});
@@ -830,7 +850,80 @@ function clientForm(c){
 }
 
 /* ---------- 내 계정 (폰) ---------- */
-function meMenu(){var m=openForm({title:S.me.name+' ('+S.me.login_id+')',fields:[{id:'x',type:'info',html:'<span>'+(isAdmin()?'관리자 · 전체 입력·수정':'담당 사업장 '+S.me.sites.length+'곳')+'</span><div class="actions" style="margin-top:8px"><button type="button" class="btn" data-act="pw">비밀번호 변경</button><button type="button" class="btn" data-act="logout">로그아웃</button></div><span class="muted">'+VERSION+'</span>'}],saveLabel:'닫기',onSave:function(){}});m.querySelector('[data-close]').remove();}
+function meMenu(){var m=openForm({title:S.me.name+' ('+S.me.login_id+')',fields:[{id:'x',type:'info',html:'<span>'+(isAdmin()?'관리자 · 전체 입력·수정':'담당 사업장 '+S.me.sites.length+'곳')+'</span><div class="actions" style="margin-top:8px"><button type="button" class="btn" data-act="pw">비밀번호 변경</button><button type="button" class="btn" data-act="logout">로그아웃</button>'+installHtml().replace('<button type="button"','<button type="button" class="btn"')+'</div><span class="muted">'+VERSION+'</span>'}],saveLabel:'닫기',onSave:function(){}});m.querySelector('[data-close]').remove();}
+
+
+/* ---------- 사진 ---------- */
+var BUCKET='site-photos';S.purl={};S.purlAt=0;
+async function signPhotos(list){
+  var paths=list.map(function(p){return p.path;});if(!paths.length){S.purlAt=Date.now();return;}
+  try{var r=await sb.storage.from(BUCKET).createSignedUrls(paths,600);(r.data||[]).forEach(function(x){if(x.signedUrl)S.purl[x.path]=x.signedUrl;});S.purlAt=Date.now();}catch(e){}
+}
+function photosOf(type,id){return (S.detail&&S.detail.photos||[]).filter(function(p){return p.target_type===type&&p.target_id===id;});}
+function thumb(p){var u=S.purl[p.path];return '<button type="button" class="pthumb" data-act="photo-view" data-id="'+p.id+'" aria-label="사진 크게 보기">'+(u?'<img alt="" loading="lazy" src="'+esc(u)+'">':'')+'</button>';}
+function addTile(type,id,label){return '<label class="pthumb add" title="사진 추가">'+(label||'+ 사진')+'<input type="file" accept="image/*" multiple hidden data-ptype="'+type+'" data-pid="'+id+'"></label>';}
+function photoStrip(type,id,ed,emptyText){var list=photosOf(type,id);
+  if(!list.length&&!ed)return emptyText?'<div class="muted" style="font-size:12px">'+esc(emptyText)+'</div>':'';
+  return '<div class="pstrip">'+list.map(thumb).join('')+(ed?addTile(type,id):'')+'</div>';}
+function faceSlot(m,ed){var f=photosOf('manager_face',m.id)[0];
+  if(f)return '<button type="button" class="photo face" data-act="photo-view" data-id="'+f.id+'" aria-label="얼굴 사진 보기">'+(S.purl[f.path]?'<img alt="" src="'+esc(S.purl[f.path])+'">':'')+'</button>';
+  if(ed&&m.photo_consent_on)return '<label class="photo face add" title="얼굴 사진 올리기">+ 사진<input type="file" accept="image/*" hidden data-ptype="manager_face" data-pid="'+m.id+'"></label>';
+  return '<span class="photo">'+(m.photo_consent_on?'사진 없음':'동의 전')+'</span>';}
+function shrink(file){return new Promise(function(res,rej){
+  var done=function(src,w,h,rel){var k=Math.min(1,1600/Math.max(w,h));var c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);
+    c.getContext('2d').drawImage(src,0,0,c.width,c.height);if(rel)rel();c.toBlob(function(b){b?res(b):rej(new Error('사진을 변환하지 못했습니다'));},'image/jpeg',0.82);};
+  if(window.createImageBitmap){createImageBitmap(file,{imageOrientation:'from-image'}).then(function(bm){done(bm,bm.width,bm.height,function(){bm.close&&bm.close();});}).catch(fallback);}else fallback();
+  function fallback(){var u=URL.createObjectURL(file),im=new Image();im.onload=function(){done(im,im.naturalWidth,im.naturalHeight,function(){URL.revokeObjectURL(u);});};im.onerror=function(){URL.revokeObjectURL(u);rej(new Error('사진 파일을 읽지 못했습니다 ('+file.name+')'));};im.src=u;}
+});}
+function uid(){if(crypto.randomUUID)return crypto.randomUUID();var a=new Uint8Array(16);crypto.getRandomValues(a);return [].map.call(a,function(x){return ('0'+x.toString(16)).slice(-2);}).join('');}
+async function uploadPhotos(type,targetId,files){
+  var sid=S.siteId,ok=0;files=[].slice.call(files,0,10);
+  if(type==='manager_face')files=files.slice(0,1);
+  for(var i=0;i<files.length;i++){
+    toast('사진 올리는 중… ('+(i+1)+'/'+files.length+')');
+    try{var blob=await shrink(files[i]);
+      var path=sid+'/'+type+'/'+uid()+'.jpg';
+      var up=await sb.storage.from(BUCKET).upload(path,blob,{contentType:'image/jpeg',upsert:false,cacheControl:'3600'});
+      if(up.error)throw up.error;
+      var ins=await sb.from('site_photos').insert({site_id:sid,target_type:type,target_id:targetId,path:path,taken_on:today()});
+      if(ins.error){await sb.storage.from(BUCKET).remove([path]);throw ins.error;}
+      ok++;}
+    catch(e){toast(errMsg(e));}
+  }
+  if(ok&&type==='manager_face'){var old=photosOf('manager_face',targetId);for(var j=0;j<old.length;j++)await removePhoto(old[j]);}
+  if(ok){await loadDetail(sid,true);openDetail(sid,true);toast('사진 '+ok+'장을 올렸습니다');}
+}
+async function removePhoto(p){var r=await sb.storage.from(BUCKET).remove([p.path]);if(r.error)throw r.error;await q(sb.from('site_photos').delete().eq('id',p.id));}
+async function removePhotosFor(type,id){var list=photosOf(type,id);for(var i=0;i<list.length;i++)await removePhoto(list[i]);}
+async function removeNotesFor(type,id){var ns=S.detail?S.detail.notes.filter(function(n){return n.target_type===type&&n.target_id===id;}):[];
+  for(var i=0;i<ns.length;i++){await removePhotosFor('note',ns[i].id);await q(sb.from('site_notes').delete().eq('id',ns[i].id));}}
+function photoView(id){
+  var p=(S.detail.photos||[]).filter(function(x){return x.id===id;})[0];if(!p)return;var ed=canEdit(p.site_id);
+  var m=openForm({title:'사진',fields:[{id:'x',type:'info',html:'<img class="pbig" alt="사진" src="'+esc(S.purl[p.path]||'')+'"><span>'+esc(p.taken_on||'')+' · 올린 사람 '+esc(memberName(p.created_by))+'</span>'}],
+    saveLabel:'닫기',onSave:function(){},deleteLabel:'사진 삭제',onDelete:ed?async function(){await removePhoto(p);await loadDetail(S.siteId,true);openDetail(S.siteId,true);toast('사진을 삭제했습니다');}:null});
+  var c=m.querySelector('[data-close]');if(c)c.remove();
+}
+app.addEventListener('change',function(e){var t=e.target;if(!t.dataset||!t.dataset.ptype||!t.files||!t.files.length)return;
+  var files=[].slice.call(t.files);t.value='';uploadPhotos(t.dataset.ptype,Number(t.dataset.pid),files);});
+/* 서명 링크 만료 전에 다시 받기 (10분 링크, 8분마다 갱신) */
+setInterval(function(){if(S.me&&S.detail&&S.view==='sites'&&Date.now()-S.purlAt>480e3){signPhotos(S.detail.photos).then(function(){openDetail(S.siteId,true);});}},60e3);
+
+/* ---------- 계정 잠금 표시 ---------- */
+function isLocked(login){var x=S.locks&&S.locks[login];return !!(x&&x.locked_until&&new Date(x.locked_until).getTime()>Date.now());}
+function lockChip(login){if(isLocked(login)){var mn=Math.ceil((new Date(S.locks[login].locked_until).getTime()-Date.now())/60000);return '<span class="chip bad">잠김 '+mn+'분</span> ';}
+  var x=S.locks&&S.locks[login];return x&&x.fails?'<span class="chip warn">실패 '+x.fails+'회</span> ':'';}
+
+/* ---------- 앱 설치 (PWA) ---------- */
+S.installEvt=null;
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();S.installEvt=e;if(S.me){S.keepScroll=true;render();}});
+window.addEventListener('appinstalled',function(){S.installEvt=null;toast('앱을 설치했습니다');if(S.me){S.keepScroll=true;render();}});
+function isStandalone(){return (window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;}
+function isIOS(){return /iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);}
+function installHtml(){if(isStandalone())return '';
+  if(S.installEvt)return '<button type="button" data-act="install">앱으로 설치</button>';
+  if(isIOS())return '<span class="muted" style="font-size:11.5px">아이폰: Safari 공유 버튼 › 홈 화면에 추가</span>';return '';}
+async function doInstall(){if(!S.installEvt)return;S.installEvt.prompt();try{await S.installEvt.userChoice;}catch(e){}S.installEvt=null;S.keepScroll=true;render();}
+if('serviceWorker' in navigator&&location.protocol==='https:'){window.addEventListener('load',function(){navigator.serviceWorker.register('./sw.js').catch(function(){});});}
 
 /* ---------- 이벤트 ---------- */
 app.addEventListener('click',async function(e){
@@ -878,6 +971,8 @@ app.addEventListener('click',async function(e){
     case 'client-add':clientForm(null);return;
     case 'client-edit':clientForm(byId(S.clients,id));return;
     case 'audit-reload':S.audit=null;render();return;
+    case 'photo-view':photoView(id);return;
+    case 'install':doInstall();return;
     case 'code-toggle':var c=byId(S.codes,id);try{await q(sb.from('site_codes').update({active:!c.active}).eq('id',id));c.active=!c.active;S.keepScroll=true;render();toast(c.active?'다시 쓰도록 바꿨습니다':'숨겼습니다 (기존 기록은 그대로)');}catch(x){toast(errMsg(x));}return;
   }
 });
@@ -901,6 +996,7 @@ sb.auth.onAuthStateChange(function(ev){if(ev==='SIGNED_OUT'&&S.me){S.me=null;sto
 window.addEventListener('focus',function(){if(S.me&&S.view==='dash'&&Date.now()-(S.lastLoad||0)>300e3){S.lastLoad=Date.now();loadAll().then(function(){S.keepScroll=true;render();}).catch(function(){});}});
 
 /* ---------- 시작 ---------- */
+try{localStorage.removeItem('chm-sites-lock');}catch(e){}
 (async function(){
   app.innerHTML='<div class="loading">불러오는 중…</div>';
   try{var r=await sb.auth.getSession();if(r.data&&r.data.session)afterSignIn();else showLogin();}catch(e){showLogin(errMsg(e));}

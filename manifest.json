@@ -1,0 +1,16 @@
+{
+  "name": "CHM 사업장 관리",
+  "short_name": "CHM Sites",
+  "description": "CHM 전국 사업장 현황·방문기록 관리",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F7F9FA",
+  "theme_color": "#0E6B5B",
+  "icons": [
+    {"src": "chmsites-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "chmsites-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "chmsites-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
