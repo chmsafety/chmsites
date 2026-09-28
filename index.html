@@ -273,7 +273,7 @@ body{padding:0;overflow:hidden}
 var SB_URL='https://dbymktwxokbvfshlztrg.supabase.co';
 var SB_KEY='sb_publishable_RHDgmlGV-m946etnPHfXaw_vy2u8uCp';
 var DOMAIN='sites.chm.local';
-var VERSION='6단계 · 2026-09-29';
+var VERSION='6.1단계 · 2026-09-29';
 var IDLE_MIN=30;
 var CATS=['관리','사무지원','시설','보안','CS','미화'];
 var EQ_TYPES={'냉동기':['터보','흡수식','스크류','히트펌프','기타'],'보일러':['관류','노통연관','온수','전기','기타']};
@@ -701,8 +701,8 @@ function viewSet(){
        activeSites().map(function(s){return '<label><input type="checkbox" data-as="'+s.id+'"'+(mine.indexOf(s.id)>=0?' checked':'')+'>'+esc(s.name)+'</label>';}).join('')+'</div></section>';}
   } else if(S.stab==='sites'){
     var arch=S.sites.filter(function(s){return s.status==='보관';});
-    b='<section class="card"><h3>사업장 <span class="chip">운영 '+activeSites().length+'곳</span>'+(arch.length?'<span class="chip">보관 '+arch.length+'곳</span>':'')+'<button type="button" class="btn sm r" data-act="site-add">'+I.plus+'사업장 추가</button></h3><div class="tbl-wrap"><table><thead><tr><th>사업장</th><th>고객사</th><th>연동 별칭(점검 / 교육)</th><th>상태</th><th></th></tr></thead><tbody>'+
-      S.sites.map(function(s){var al=s.aliases||{};return '<tr><td><b>'+esc(s.name)+'</b></td><td>'+esc(clientName(s.client_id))+'</td><td class="muted">'+esc((al.safety||'—')+' / '+(al.edu||'—'))+'</td><td>'+(s.status==='운영'?'<span class="chip good">운영</span>':'<span class="chip">보관</span>')+'</td><td><button type="button" class="btn sm" data-act="site-edit" data-id="'+s.id+'">수정</button></td></tr>';}).join('')+'</tbody></table></div></section>'+
+    b='<section class="card"><h3>사업장 <span class="chip">운영 '+activeSites().length+'곳</span>'+(arch.length?'<span class="chip">보관 '+arch.length+'곳</span>':'')+'<span class="r actions">'+(function(){var n=activeSites().filter(function(x){return x.addr&&!x.building_id;}).length;return n?'<button type="button" class="btn sm" data-act="bld-all">건축물대장 일괄 조회 ('+n+'곳)</button>':'';})()+'<button type="button" class="btn sm" data-act="site-add">'+I.plus+'사업장 추가</button></span></h3><div class="tbl-wrap"><table><thead><tr><th>사업장</th><th>고객사</th><th>주소 · 건축물대장</th><th>연동 별칭(점검 / 교육)</th><th>상태</th><th></th></tr></thead><tbody>'+
+      S.sites.map(function(s){var al=s.aliases||{};return '<tr><td><b>'+esc(s.name)+'</b></td><td>'+esc(clientName(s.client_id))+'</td><td style="white-space:normal;max-width:300px">'+(s.addr?esc(s.addr)+' '+(s.building_id?'<span class="chip good">연결</span>':'<span class="chip warn">미조회</span>'):'<span class="muted">주소 없음</span>')+'</td><td class="muted">'+esc((al.safety||'—')+' / '+(al.edu||'—'))+'</td><td>'+(s.status==='운영'?'<span class="chip good">운영</span>':'<span class="chip">보관</span>')+'</td><td><button type="button" class="btn sm" data-act="site-edit" data-id="'+s.id+'">수정</button></td></tr>';}).join('')+'</tbody></table></div></section>'+
      '<section class="card"><h3>고객사 <span class="chip">'+S.clients.length+'곳</span><button type="button" class="btn sm r" data-act="client-add">'+I.plus+'고객사 추가</button></h3><div class="list2" style="display:flex;flex-wrap:wrap;gap:6px">'+S.clients.map(function(c){return '<button type="button" class="chip" data-act="client-edit" data-id="'+c.id+'">'+esc(c.name)+' · '+S.sites.filter(function(s){return s.client_id===c.id;}).length+'</button>';}).join('')+'</div></section>';
   } else if(S.stab==='xlsx'){
     b=viewImp();
@@ -1080,6 +1080,18 @@ function siteForm(s){
       await loadAll();S.keepScroll=true;render();toast('사업장을 저장했습니다');
       if(!s&&v.addr){toast('건축물대장 조회 중…',6000);bldSync(S.siteId,null);}}});
 }
+/* 주소는 있는데 아직 건축물대장을 안 불러온 사업장을 한 곳씩 차례로 조회 (관리자) */
+async function bldAll(btn){
+  var list=activeSites().filter(function(x){return x.addr&&!x.building_id;});if(!list.length)return;
+  btn.disabled=true;var ok=0,fail=[];
+  for(var i=0;i<list.length;i++){btn.textContent='조회 중 '+(i+1)+'/'+list.length+' · '+list[i].name;
+    try{var r=await sb.functions.invoke('site-building',{body:{site_id:list[i].id}});
+      if(r.error){var msg=r.error.message;try{var j=await r.error.context.json();if(j&&j.error)msg=j.error;}catch(e){}throw new Error(msg);}ok++;}
+    catch(x){fail.push(list[i].name+': '+errMsg(x));}}
+  await loadAll();S.keepScroll=true;render();
+  if(fail.length)openForm({title:'건축물대장 일괄 조회 결과',fields:[{id:'x',type:'info',html:'<span>'+ok+'곳 완료 · '+fail.length+'곳 실패 (주소를 확인해 고친 뒤 사업장 상세 › 기본현황에서 「불러오기」)</span><ul style="margin:6px 0 0;padding-left:18px">'+fail.map(function(f){return '<li>'+esc(f)+'</li>';}).join('')+'</ul>'}],saveLabel:'닫기',onSave:function(){}});
+  else toast(ok+'곳 모두 건축물대장을 반영하고 빌딩정보시스템에 연결했습니다',6000);
+}
 /* 새 고객사 만들기 (같은 이름이 있으면 그걸 씀) */
 async function newClient(name){name=String(name||'').trim();if(!name)throw new Error('새 고객사명을 입력하세요.');
   var ex=S.clients.filter(function(c){return c.name.replace(/\s/g,'')===name.replace(/\s/g,'');})[0];if(ex)return ex.id;
@@ -1215,6 +1227,7 @@ app.addEventListener('click',async function(e){
     case 'person-add':personForm(null);return;
     case 'person-edit':personForm(byId(S.detail.people||[],id));return;
     case 'bld-sync':bldSync(S.siteId,el);return;
+    case 'bld-all':bldAll(el);return;
     case 'client-set':clientSetForm(s);return;
     case 'imp-apply':impApply(el);return;
     case 'imp-cancel':S.imp=null;S.keepScroll=true;render();return;
