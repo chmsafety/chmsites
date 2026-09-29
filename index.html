@@ -281,7 +281,7 @@ body{padding:0;overflow:hidden}
 var SB_URL='https://dbymktwxokbvfshlztrg.supabase.co';
 var SB_KEY='sb_publishable_RHDgmlGV-m946etnPHfXaw_vy2u8uCp';
 var DOMAIN='sites.chm.local';
-var VERSION='7.1단계 · 2026-09-29';
+var VERSION='7.2단계 · 2026-09-29';
 var IDLE_MIN=30;
 var CATS=['관리','사무지원','시설','보안','CS','미화'];
 var EQ_TYPES={'냉동기':['터보','흡수식','스크류','히트펌프','기타'],'보일러':['관류','노통연관','온수','전기','기타']};
@@ -1282,8 +1282,11 @@ app.addEventListener('click',async function(e){
     case 'code-toggle':var c=byId(S.codes,id);try{await q(sb.from('site_codes').update({active:!c.active}).eq('id',id));c.active=!c.active;S.keepScroll=true;render();toast(c.active?'다시 쓰도록 바꿨습니다':'숨겼습니다 (기존 기록은 그대로)');}catch(x){toast(errMsg(x));}return;
   }
 });
+/* 검색창은 그대로 두고 목록만 다시 그림 — 한글 입력(자음·모음 조합)이 끊기지 않도록 */
+function refreshList(){var tmp=document.createElement('div');tmp.innerHTML=viewSites();
+  ['.lcount','.lbody'].forEach(function(sel){var a=app.querySelector(sel),b=tmp.querySelector(sel);if(a&&b)a.innerHTML=b.innerHTML;});}
 app.addEventListener('input',function(e){
-  if(e.target.id==='q'){S.q=e.target.value;var pos=e.target.selectionStart;render();var qi=document.getElementById('q');qi.focus();try{qi.setSelectionRange(pos,pos);}catch(x){}}
+  if(e.target.id==='q'){S.q=e.target.value;refreshList();}
 });
 app.addEventListener('change',async function(e){
   var t=e.target;
