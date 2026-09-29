@@ -261,6 +261,14 @@ body{padding:0;overflow:hidden}
 .photo.face img{width:100%;height:100%;object-fit:cover;display:block}
 .photo.face.add{border-style:dashed;color:var(--accent-ink);background:none;font-size:11px}
 .pbig{width:100%;max-height:60vh;object-fit:contain;border-radius:8px;background:var(--surface-2)}
+/* 회사 선택 (CHM · CHMS) */
+.coseg{display:inline-flex;gap:2px;padding:3px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);margin-bottom:12px}
+.coseg button{border:0;background:none;padding:6px 16px;border-radius:7px;font-weight:600;font-size:13px;color:var(--ink-2);cursor:pointer}
+.coseg button[aria-pressed="true"].co-chm{background:#1E6FE0;color:#fff}
+.coseg button[aria-pressed="true"].co-chms{background:#D7261E;color:#fff}
+.lhead .coseg{margin-bottom:8px}
+.chip.co-chip.co-chm{background:#E6F0FF;color:#1558C0;border-color:#B7D2FF}
+.chip.co-chip.co-chms{background:#FFECEB;color:#B51F18;border-color:#FFC2BE}
 
 </style>
 </head>
@@ -273,7 +281,7 @@ body{padding:0;overflow:hidden}
 var SB_URL='https://dbymktwxokbvfshlztrg.supabase.co';
 var SB_KEY='sb_publishable_RHDgmlGV-m946etnPHfXaw_vy2u8uCp';
 var DOMAIN='sites.chm.local';
-var VERSION='6.1단계 · 2026-09-29';
+var VERSION='7.1단계 · 2026-09-29';
 var IDLE_MIN=30;
 var CATS=['관리','사무지원','시설','보안','CS','미화'];
 var EQ_TYPES={'냉동기':['터보','흡수식','스크류','히트펌프','기타'],'보일러':['관류','노통연관','온수','전기','기타']};
@@ -287,6 +295,9 @@ var sb=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,aut
 var S={me:null,clients:[],sites:[],staff:[],codes:[],members:[],assign:[],visits:[],managers:[],
   view:'dash',siteId:null,tab:'client',open:false,q:'',client:'전체',short:false,mine:false,zone:'전체',vp:'전체',stab:'acct',su:null,showArchived:false,
   detail:null,detailFor:null,audit:null};
+var COMPANIES=['CHM','CHMS'];
+try{var sc=localStorage.getItem('chm-sites-company');if(COMPANIES.indexOf(sc)>=0)S.company=sc;}catch(e){}
+if(!S.company)S.company='CHM';
 var byId=function(arr,id){for(var i=0;i<arr.length;i++)if(arr[i].id===id)return arr[i];return null;};
 
 /* ---------- 도구 ---------- */
@@ -450,10 +461,15 @@ async function loadAll(){
   if(!S.su){var u=S.members.filter(function(m){return m.role!=='admin';})[0];S.su=u?u.user_id:null;}
   S.detailFor=null;
 }
-function activeSites(){return S.sites.filter(function(s){return s.status==='운영';});}
+/* 지금 고른 회사(CHM·CHMS)의 운영 중 사업장 — 대시보드·목록·설정이 모두 이 목록을 씀 */
+function activeSites(){return S.sites.filter(function(s){return s.status==='운영'&&(s.company||'CHM')===S.company;});}
+function coVisits(){var ids={};activeSites().forEach(function(s){ids[s.id]=1;});return S.visits.filter(function(v){return ids[v.site_id];});}
+function coTabs(){return '<div class="coseg" role="group" aria-label="회사 선택">'+COMPANIES.map(function(c){return '<button type="button" data-co="'+c+'" class="co-'+c.toLowerCase()+'" aria-pressed="'+(S.company===c)+'">'+c+'</button>';}).join('')+'</div>';}
+function setCompany(c){if(COMPANIES.indexOf(c)<0||S.company===c)return;S.company=c;try{localStorage.setItem('chm-sites-company',c);}catch(e){}
+  var f=activeSites()[0];S.siteId=f?f.id:null;S.detailFor=null;S.detail=null;S.open=false;S.imp=null;S.histNames=null;S.zone='전체';S.client='전체';render();var mn=document.getElementById('main');if(mn)mn.scrollTop=0;}
 function latestRows(siteId){var rows=S.staff.filter(function(r){return r.site_id===siteId;});if(!rows.length)return[];
   var mx=rows.reduce(function(m,r){return r.base_date>m?r.base_date:m;},'');return rows.filter(function(r){return r.base_date===mx;});}
-function staffOf(siteId,zone){var t=CATS.map(function(){return[0,0];});latestRows(siteId).forEach(function(r){if(zone&&zone!=='전체'&&r.zone!==zone)return;var k=CATS.indexOf(r.job);if(k>=0){t[k][0]+=r.quota;t[k][1]+=r.current;}});return t;}
+function staffOf(siteId,zone){var t=CATS.map(function(){return[0,0];});latestRows(siteId).forEach(function(r){if(zone&&zone!=='전체'&&r.zone!==zone)return;var k=CATS.indexOf(r.job);if(k>=0){t[k][0]=Math.round((t[k][0]+Number(r.quota))*10)/10;t[k][1]=Math.round((t[k][1]+Number(r.current))*10)/10;}});return t;}
 function totOf(siteId){return staffOf(siteId).reduce(function(p,v){return[p[0]+v[0],p[1]+v[1]];},[0,0]);}
 function baseDateOf(siteId){var l=latestRows(siteId);return l.length?l[0].base_date:null;}
 function zonesOf(siteId){var z=[];latestRows(siteId).forEach(function(r){if(z.indexOf(r.zone)<0)z.push(r.zone);});return z;}
@@ -489,7 +505,7 @@ function render(){
   var who='<b>'+esc(S.me.name)+' ('+esc(S.me.login_id)+')</b><span>'+(isAdmin()?'관리자 · 전체 입력·수정':'담당 사업장 '+S.me.sites.length+'곳 · 나머지는 조회만')+'</span><div class="actions"><button type="button" data-act="pw">비밀번호 변경</button><button type="button" data-act="logout">로그아웃</button>'+installHtml()+'</div>';
   var main=S.view==='dash'?viewDash():S.view==='sites'?viewSites():S.view==='visits'?viewVisits():S.view==='set'?viewSet():viewDash();
   var sy=S.view==='sites'?null:(document.getElementById('main')||{}).scrollTop;
-  app.innerHTML='<div class="shell"><nav class="nav" aria-label="메뉴"><div class="brand"><span class="mk">CHM</span><div><b>사업장 관리</b><small>운영 '+activeSites().length+'곳</small></div></div>'+
+  app.innerHTML='<div class="shell"><nav class="nav" aria-label="메뉴"><div class="brand"><span class="mk">CHM</span><div><b>사업장 관리</b><small>'+esc(S.company)+' · 운영 '+activeSites().length+'곳</small></div></div>'+
     nav.map(function(n){return '<button type="button" class="it" data-nav="'+n[0]+'"'+(S.view===n[0]?' aria-current="page"':'')+'>'+I[n[0]==='set'?'set':n[0]]+'<span>'+n[1]+'</span></button>';}).join('')+
     '<button type="button" class="it only-phone" data-act="menu">'+I.me+'<span>내 계정</span></button>'+
     '<div class="who">'+who+'</div></nav><main class="main'+(S.view==='sites'?' fill':'')+'" id="main">'+main+'</main></div>';
@@ -508,8 +524,8 @@ function viewDash(){
   var basis=dates.length?(dates[0]===dates[dates.length-1]?'인원 기준일 '+dates[0]:'인원 기준일 '+dates[0]+' ~ '+dates[dates.length-1]):'인원 자료 없음';
   var bars=CATS.map(function(c,k){var g=cat[k][0]-cat[k][1];return '<div class="bar"><span>'+c+'</span><span class="tr"><span class="fl" style="width:'+(cat[k][1]/max*100)+'%"></span></span><span class="v">'+fmt(cat[k][1])+' / '+fmt(cat[k][0])+(g>0?' <em>−'+g+'</em>':'')+'</span></div>';}).join('');
   var shortRows=short.slice(0,10).map(function(x){return '<button type="button" class="rowi" data-go="'+x.s.id+'"><span class="grow"><b>'+esc(x.s.name)+'</b> <span class="muted">· '+esc(clientName(x.s.client_id))+'</span></span><span class="num muted">'+x.t[1]+'/'+x.t[0]+'</span><span class="chip bad">결원 '+x.g+'</span></button>';}).join('')||'<div class="empty">결원이 있는 사업장이 없습니다.</div>';
-  var vrows=S.visits.slice(0,6).map(visitRow).join('')||'<div class="empty">아직 방문기록이 없습니다.</div>';
-  return '<div class="page"><div class="ph"><div><h1>대시보드</h1><p>'+esc(basis)+' · 본사 제외</p></div><div class="actions">'+(isAdmin()?'<button type="button" class="btn sm" data-act="go-imp">엑셀로 인원 반영</button>':'')+'<button type="button" class="btn sm" data-act="reload">새로고침</button></div></div>'+
+  var vrows=coVisits().slice(0,6).map(visitRow).join('')||'<div class="empty">아직 방문기록이 없습니다.</div>';
+  return '<div class="page">'+coTabs()+'<div class="ph"><div><h1>대시보드 <span class="chip co-chip co-'+S.company.toLowerCase()+'">'+esc(S.company)+'</span></h1><p>'+esc(basis)+' · 본사 제외</p></div><div class="actions">'+(isAdmin()?'<button type="button" class="btn sm" data-act="go-imp">엑셀로 인원 반영</button>':'')+'<button type="button" class="btn sm" data-act="reload">새로고침</button></div></div>'+
    '<div class="kpis"><div class="kpi"><small>사업장</small><b>'+act.length+'</b></div><div class="kpi"><small>정원</small><b>'+fmt(tot[0])+'</b></div><div class="kpi"><small>현원</small><b>'+fmt(tot[1])+'</b></div><div class="kpi alert"><small>결원</small><b>'+fmt(gap)+'</b></div><div class="kpi"><small>충원율</small><b>'+rate+'%</b></div></div>'+
    '<div class="dgrid"><section class="card"><h3>직군별 현원 / 정원</h3><div class="bars">'+bars+'</div></section>'+
    '<section class="card"><h3>결원이 있는 사업장 <span class="chip bad r">'+short.length+'곳</span></h3><div class="rows">'+shortRows+'</div></section></div>'+
@@ -529,9 +545,9 @@ function viewSites(){
   var list=filtered();
   var items=list.map(function(s){var t=totOf(s.id),g=t[0]-t[1],mine=!isAdmin()&&S.me.sites.indexOf(s.id)>=0,zn=zonesOf(s.id).filter(Boolean).length;
     return '<button type="button" class="si" data-site="'+s.id+'"'+(S.siteId===s.id?' aria-current="true"':'')+'><span class="nm">'+esc(s.name)+(mine?'<span class="star" title="담당">★</span>':'')+'</span><span class="hc"><span class="num">'+t[1]+'/'+t[0]+'</span>'+(g>0?'<small class="chip bad">−'+g+'</small>':'')+'</span><span class="sub">'+esc(clientName(s.client_id))+(zn>1?' · 구역 '+zn:'')+'</span></button>';}).join('');
-  return '<div class="sites" data-open="'+(S.open?1:0)+'"><section class="list"><div class="lhead"><div class="top"><h2>사업장</h2>'+(isAdmin()?'<button type="button" class="btn sm" data-act="site-add">'+I.plus+'추가</button>':'')+'</div>'+
+  return '<div class="sites" data-open="'+(S.open?1:0)+'"><section class="list"><div class="lhead">'+coTabs()+'<div class="top"><h2>사업장</h2>'+(isAdmin()?'<button type="button" class="btn sm" data-act="site-add">'+I.plus+'추가</button>':'')+'</div>'+
    '<label class="search">'+I.search+'<input id="q" type="search" placeholder="사업장·고객사 검색" value="'+esc(S.q)+'"></label>'+
-   '<div class="filters"><select id="fc" aria-label="고객사"><option value="전체">고객사 전체</option>'+S.clients.map(function(c){return '<option value="'+c.id+'"'+(S.client===String(c.id)?' selected':'')+'>'+esc(c.name)+'</option>';}).join('')+'</select>'+
+   '<div class="filters"><select id="fc" aria-label="고객사"><option value="전체">고객사 전체</option>'+S.clients.filter(function(c){return activeSites().some(function(s){return s.client_id===c.id;});}).map(function(c){return '<option value="'+c.id+'"'+(S.client===String(c.id)?' selected':'')+'>'+esc(c.name)+'</option>';}).join('')+'</select>'+
    '<button type="button" class="fchip" id="fs" aria-pressed="'+S.short+'">결원</button>'+(!isAdmin()?'<button type="button" class="fchip" id="fm" aria-pressed="'+S.mine+'">★ 내 담당</button>':'')+'</div></div>'+
    '<div class="lcount">'+list.length+'곳 · 현원/정원</div><div class="lbody">'+(items||'<div class="empty" style="margin:14px">조건에 맞는 사업장이 없습니다.</div>')+'</div></section>'+
    '<section class="detail" id="detail">'+viewDetail()+'</section></div>';
@@ -549,7 +565,7 @@ function viewDetail(){
   var tabs=[['client','고객사'],['basic','기본현황'],['staff','인력현황'],['equip','설비현황'],['hist','기타 이력']];
   var body=!ready?'<div class="loading" style="height:120px">불러오는 중…</div>':S.tab==='client'?tabClient(s,ed):S.tab==='basic'?tabBasic(s,ed):S.tab==='staff'?tabStaff(s,ed):S.tab==='equip'?tabEquip(s,ed):tabHist(s);
   var vcount=ready?S.detail.visits.length:S.visits.filter(function(v){return v.site_id===s.id;}).length;
-  return '<header class="dh"><button type="button" class="back" data-act="back">‹ 사업장 목록</button><div class="t"><h2>'+esc(s.name)+'</h2><span class="chip acc">'+esc(clientName(s.client_id))+'</span>'+(!ed?'<span class="chip warn">'+I.lock+' 조회 전용</span>':'')+'</div>'+
+  return '<header class="dh"><button type="button" class="back" data-act="back">‹ 사업장 목록</button><div class="t"><h2>'+esc(s.name)+'</h2><span class="chip co-chip co-'+esc((s.company||'CHM').toLowerCase())+'">'+esc(s.company||'CHM')+'</span><span class="chip acc">'+esc(clientName(s.client_id))+'</span>'+(!ed?'<span class="chip warn">'+I.lock+' 조회 전용</span>':'')+'</div>'+
    '<div class="sum"><span>현원/정원<b>'+t[1]+'/'+t[0]+'</b></span><span>결원<b style="color:'+(g>0?'var(--bad)':'inherit')+'">'+g+'</b></span><span>관리자<b>'+S.managers.filter(function(m){return m.site_id===s.id&&m.active;}).length+'</b></span><span>방문기록<b>'+vcount+'</b></span></div>'+
    '<div class="tabs" role="tablist">'+tabs.map(function(x){return '<button type="button" role="tab" data-tab="'+x[0]+'" aria-selected="'+(S.tab===x[0])+'">'+x[1]+'</button>';}).join('')+'</div></header>'+
    '<div class="dbody">'+(!ed?'<div class="readonly">'+I.lock+'담당 사업장이 아니어서 볼 수만 있습니다. 수정이 필요하면 관리자에게 담당 지정을 요청하세요.</div>':'')+body+'</div>'+
@@ -674,9 +690,9 @@ function viewLink(){
 /* ---------- 방문기록 화면 ---------- */
 function viewVisits(){
   var ps=['전체'].concat(codes('visit_purpose').map(function(c){return c.label;}));
-  var list=S.visits.filter(function(v){return S.vp==='전체'||v.purpose===S.vp;});
+  var list=coVisits().filter(function(v){return S.vp==='전체'||v.purpose===S.vp;});
   var anyEdit=isAdmin()||S.me.sites.length>0;
-  return '<div class="page"><div class="ph"><div><h1>방문기록</h1><p>전 사업장 방문·미팅 기록, 최신순 (최근 500건)</p></div>'+(anyEdit?'<button type="button" class="btn pri" data-act="visit-add-any">'+I.plus+'방문기록</button>':'')+'</div>'+
+  return '<div class="page">'+coTabs()+'<div class="ph"><div><h1>방문기록</h1><p>전 사업장 방문·미팅 기록, 최신순 (최근 500건)</p></div>'+(anyEdit?'<button type="button" class="btn pri" data-act="visit-add-any">'+I.plus+'방문기록</button>':'')+'</div>'+
    '<div class="filters">'+ps.map(function(p){return '<button type="button" class="fchip" data-vp="'+esc(p)+'" aria-pressed="'+(S.vp===p)+'">'+esc(p)+'</button>';}).join('')+'</div>'+
    '<section class="card">'+(list.length?'<div class="tl">'+list.map(function(v){var s=byId(S.sites,v.site_id);return '<div class="tli"><span class="d">'+esc(v.visit_date)+'</span><div class="c"><div class="meta"><button type="button" class="btn sm" data-go="'+v.site_id+'" data-gotab="basic">'+esc(s?s.name:'')+'</button><span class="chip acc">'+esc(purposeText(v))+'</span><span>'+(v.attendee?'미팅자 '+esc(v.attendee)+' · ':'')+'작성 '+esc(memberName(v.created_by))+'</span></div><span style="white-space:pre-wrap">'+esc(v.content)+'</span></div></div>';}).join('')+'</div>':'<div class="empty">해당 기록이 없습니다.</div>')+'</section></div>';
 }
@@ -700,9 +716,9 @@ function viewSet(){
       b='<section class="card"><h3>담당 사업장 지정</h3><div class="filters" style="margin-bottom:12px"><select id="su" aria-label="계정">'+users.map(function(u){return '<option value="'+u.user_id+'"'+(S.su===u.user_id?' selected':'')+'>'+esc(u.login_id+' · '+u.name)+(u.active?'':' (중지)')+'</option>';}).join('')+'</select><span class="chip acc">'+mine.length+'곳 담당</span><span class="muted" style="font-size:12px">체크하면 바로 저장됩니다</span></div><div class="checks">'+
        activeSites().map(function(s){return '<label><input type="checkbox" data-as="'+s.id+'"'+(mine.indexOf(s.id)>=0?' checked':'')+'>'+esc(s.name)+'</label>';}).join('')+'</div></section>';}
   } else if(S.stab==='sites'){
-    var arch=S.sites.filter(function(s){return s.status==='보관';});
+    var arch=S.sites.filter(function(s){return s.status==='보관'&&(s.company||'CHM')===S.company;});
     b='<section class="card"><h3>사업장 <span class="chip">운영 '+activeSites().length+'곳</span>'+(arch.length?'<span class="chip">보관 '+arch.length+'곳</span>':'')+'<span class="r actions">'+(function(){var n=activeSites().filter(function(x){return x.addr&&!x.building_id;}).length;return n?'<button type="button" class="btn sm" data-act="bld-all">건축물대장 일괄 조회 ('+n+'곳)</button>':'';})()+'<button type="button" class="btn sm" data-act="site-add">'+I.plus+'사업장 추가</button></span></h3><div class="tbl-wrap"><table><thead><tr><th>사업장</th><th>고객사</th><th>주소 · 건축물대장</th><th>연동 별칭(점검 / 교육)</th><th>상태</th><th></th></tr></thead><tbody>'+
-      S.sites.map(function(s){var al=s.aliases||{};return '<tr><td><b>'+esc(s.name)+'</b></td><td>'+esc(clientName(s.client_id))+'</td><td style="white-space:normal;max-width:300px">'+(s.addr?esc(s.addr)+' '+(s.building_id?'<span class="chip good">연결</span>':'<span class="chip warn">미조회</span>'):'<span class="muted">주소 없음</span>')+'</td><td class="muted">'+esc((al.safety||'—')+' / '+(al.edu||'—'))+'</td><td>'+(s.status==='운영'?'<span class="chip good">운영</span>':'<span class="chip">보관</span>')+'</td><td><button type="button" class="btn sm" data-act="site-edit" data-id="'+s.id+'">수정</button></td></tr>';}).join('')+'</tbody></table></div></section>'+
+      S.sites.filter(function(s){return (s.company||'CHM')===S.company;}).map(function(s){var al=s.aliases||{};return '<tr><td><b>'+esc(s.name)+'</b></td><td>'+esc(clientName(s.client_id))+'</td><td style="white-space:normal;max-width:300px">'+(s.addr?esc(s.addr)+' '+(s.building_id?'<span class="chip good">연결</span>':'<span class="chip warn">미조회</span>'):'<span class="muted">주소 없음</span>')+'</td><td class="muted">'+esc((al.safety||'—')+' / '+(al.edu||'—'))+'</td><td>'+(s.status==='운영'?'<span class="chip good">운영</span>':'<span class="chip">보관</span>')+'</td><td><button type="button" class="btn sm" data-act="site-edit" data-id="'+s.id+'">수정</button></td></tr>';}).join('')+'</tbody></table></div></section>'+
      '<section class="card"><h3>고객사 <span class="chip">'+S.clients.length+'곳</span><button type="button" class="btn sm r" data-act="client-add">'+I.plus+'고객사 추가</button></h3><div class="list2" style="display:flex;flex-wrap:wrap;gap:6px">'+S.clients.map(function(c){return '<button type="button" class="chip" data-act="client-edit" data-id="'+c.id+'">'+esc(c.name)+' · '+S.sites.filter(function(s){return s.client_id===c.id;}).length+'</button>';}).join('')+'</div></section>';
   } else if(S.stab==='xlsx'){
     b=viewImp();
@@ -716,7 +732,7 @@ function viewSet(){
     else b='<section class="card"><h3>감사 로그 <span class="muted" style="font-weight:400;font-size:12px">최근 300건 · 추가·수정·삭제·연락처 열람·로그인 자동 기록 · 지울 수 없음</span><button type="button" class="btn sm r" data-act="audit-reload">새로고침</button></h3><div class="tbl-wrap"><table><thead><tr><th>일시</th><th>사용자</th><th>동작</th><th>대상</th><th>사업장</th><th>내용</th></tr></thead><tbody>'+
       S.audit.map(function(r){var s=r.site_id?byId(S.sites,r.site_id):null;return '<tr><td class="num muted">'+dt(r.at)+'</td><td>'+esc(r.login_id||'시스템')+'</td><td><span class="chip">'+esc(ACTION_LABEL[r.action]||r.action)+'</span></td><td>'+esc(TBL_LABEL[r.tbl]||r.tbl||'')+'</td><td>'+esc(s?s.name:'')+'</td><td class="muted" style="white-space:normal;max-width:360px">'+esc(auditSummary(r))+'</td></tr>';}).join('')+'</tbody></table></div></section>';
   }
-  return '<div class="page"><div class="ph"><div><h1>설정</h1><p>관리자 전용</p></div></div><div class="stabs">'+tabs.map(function(t){return '<button type="button" data-stab="'+t[0]+'" aria-pressed="'+(S.stab===t[0])+'">'+t[1]+'</button>';}).join('')+'</div>'+b+'</div>';
+  return '<div class="page">'+(['assign','sites','xlsx','link'].indexOf(S.stab)>=0?coTabs():'')+'<div class="ph"><div><h1>설정</h1><p>관리자 전용'+(['assign','sites','xlsx','link'].indexOf(S.stab)>=0?' · '+esc(S.company)+' 사업장':'')+'</p></div></div><div class="stabs">'+tabs.map(function(t){return '<button type="button" data-stab="'+t[0]+'" aria-pressed="'+(S.stab===t[0])+'">'+t[1]+'</button>';}).join('')+'</div>'+b+'</div>';
 }
 var SKIP_KEYS=['id','site_id','created_at','created_by','updated_at','updated_by','sort'];
 function auditSummary(r){
@@ -779,47 +795,63 @@ function xlsxDate(sheets){var re=/(20\d{2})\s*[년.\-\/]\s*(\d{1,2})\s*[월.\-\/
     else if(typeof v==='number'&&v>43000&&v<60000){var d=new Date(Date.UTC(1899,11,30)+Math.round(v)*864e5);return d.toISOString().slice(0,10);}}}
   return null;}
 var nj=function(s){return String(s==null?'':s).replace(/\s+/g,'');};
-/* '사옥'(또는 사업장) 제목 줄과 직군 제목(관리·사무지원·시설·보안·CS·미화)을 찾아 정원·현원을 읽음 */
+/* '사옥'(또는 사업장) 제목 줄과 직군 제목(관리·사무지원·시설·보안·CS·미화)을 찾아 인원을 읽음
+   - CHM 양식: 직군마다 정원·현원·과부족 칸
+   - CHMS 양식: 직군마다 세부 칸(사옥·전력·계 / 보안·CS·계 / 남자·여자·계) — 현원만 있어 정원=현원으로 반영, 보안·CS는 따로 */
 function parseStaffSheet(rows){
-  for(var h=0;h<Math.min(rows.length,30);h++){var hr=rows[h]||[],nameCol=-1,jobs=[];
-    for(var c=0;c<hr.length;c++){var t=nj(hr[c]);if(t==='사옥'||t==='사업장'||t==='사업장명')nameCol=c;if(CATS.indexOf(t)>=0)jobs.push([t,c]);}
-    if(nameCol<0||!jobs.length)continue;
-    var sub=rows[h+1]||[];
-    jobs=jobs.map(function(j){var qc=j[1],cc=j[1]+1;for(var k=j[1];k<j[1]+3;k++){if(nj(sub[k])==='정원')qc=k;if(nj(sub[k])==='현원')cc=k;}return [j[0],qc,cc];});
-    var list=[],blank=0;
+  for(var h=0;h<Math.min(rows.length,30);h++){var hr=rows[h]||[],nameCol=-1,heads=[];
+    for(var c=0;c<hr.length;c++){var t=nj(hr[c]);if(t==='사옥'||t==='사업장'||t==='사업장명')nameCol=c;if(t)heads.push([t,c]);}
+    var jobs0=heads.filter(function(x){return CATS.indexOf(x[0])>=0;});
+    if(nameCol<0||!jobs0.length)continue;
+    var sub=rows[h+1]||[],cols=[];
+    jobs0.forEach(function(j){var nx=heads.filter(function(x){return x[1]>j[1];})[0],end=nx?nx[1]:j[1]+3,qc=-1,cc=-1,parts=[],tot=-1;
+      for(var k=j[1];k<end;k++){var st=nj(sub[k]);if(st==='정원')qc=k;else if(st==='현원')cc=k;else if(st==='계'||st==='합계'||st==='소계')tot=k;else if(CATS.indexOf(st)>=0)parts.push([st,k]);}
+      if(qc>=0||cc>=0)cols.push([j[0],qc>=0?qc:cc,cc>=0?cc:qc]);
+      else if(parts.length)parts.forEach(function(p){cols.push([p[0],p[1],p[1]]);});
+      else if(tot>=0)cols.push([j[0],tot,tot]);
+      else cols.push([j[0],j[1],j[1]+1]);});
+    var list=[],blank=0,sec='';
     for(var r=h+2;r<rows.length;r++){var row=rows[r]||[],nm=String(row[nameCol]==null?'':row[nameCol]).replace(/\s+/g,' ').trim();
+      if(nameCol>0&&row[0]!=null&&String(row[0]).trim())sec=String(row[0]).replace(/\s+/g,'').trim();
       if(!nm){if(++blank>3)break;continue;}blank=0;
       if(/^(합\s*계|소\s*계|계|총\s*계)$/.test(nm))continue;
-      var jb={},any=false;jobs.forEach(function(j){var qv=Math.max(0,Math.round(Number(row[j[1]])||0)),cv=Math.max(0,Math.round(Number(row[j[2]])||0));if(qv||cv){jb[j[0]]=[qv,cv];any=true;}});
-      list.push({raw:nm,jobs:jb,empty:!any});}
+      var jb={},any=false;cols.forEach(function(j){var qv=Math.max(0,Math.round((Number(row[j[1]])||0)*10)/10),cv=Math.max(0,Math.round((Number(row[j[2]])||0)*10)/10);
+        if(qv||cv){var o=jb[j[0]]||(jb[j[0]]=[0,0]);o[0]+=qv;o[1]+=cv;any=true;}});
+      list.push({raw:nm,sec:sec,jobs:jb,empty:!any});}
     return list;}
   return null;}
 function nkey(s){return String(s||'').toLowerCase().replace(/[\s()\[\]\-_.·ㆍ\/&（）]/g,'');}
 function alList(v){return String(v||'').split(',').map(function(x){return nkey(x);}).filter(Boolean);}
-function impMatch(raw){
+/* 다른 회사와 이름이 같아 뒤에 (CHMS)·(CHM)을 붙인 사업장도 엑셀의 원래 이름으로 찾도록 */
+function snk(s){return nkey(String(s.name||'').replace(/\s*[(（](CHMS|CHM)[)）]\s*$/i,''));}
+function impMatch(raw,sec){
   var m=/^(.*?)\s*[(（](.+?)[)）]\s*$/.exec(raw),base=m?m[1].trim():raw,inner=m?m[2].trim():'';
   var zone=inner?(/공용/.test(inner)?'공용부':/전용/.test(inner)?'전용부':inner.replace(/\s*전용부?$/,'')+' 전용부'):'';
-  var sites=S.sites.filter(function(s){return s.status==='운영';}),kr=nkey(raw),kb=nkey(base);
-  var hit=sites.filter(function(s){return nkey(s.name)===kr;});if(hit.length===1)return{site:hit[0].id,zone:'',base:base};
-  hit=sites.filter(function(s){return nkey(s.name)===kb||alList((s.aliases||{}).staff).indexOf(kb)>=0;});if(hit.length===1)return{site:hit[0].id,zone:zone,base:base};
+  var sites=activeSites(),kr=nkey(raw),kb=nkey(base);
+  var hit;if(sec){hit=sites.filter(function(s){return nkey(s.name)===nkey(raw+'('+sec+')');});if(hit.length===1)return{site:hit[0].id,zone:'',base:base};}
+  hit=sites.filter(function(s){return nkey(s.name)===kr;});if(hit.length===1)return{site:hit[0].id,zone:'',base:base};
+  hit=sites.filter(function(s){return snk(s)===kr;});if(hit.length===1)return{site:hit[0].id,zone:'',base:base};
+  hit=sites.filter(function(s){return nkey(s.name)===kb||snk(s)===kb||alList((s.aliases||{}).staff).indexOf(kb)>=0;});if(hit.length===1)return{site:hit[0].id,zone:zone,base:base};
   hit=sites.filter(function(s){var a=s.aliases||{};return alList(a.edu).concat(alList(a.safety)).indexOf(kb)>=0;});if(hit.length===1)return{site:hit[0].id,zone:zone,base:base};
   if(kb.length>=2){hit=sites.filter(function(s){var k=nkey(s.name);return k.indexOf(kb)>=0||(k.length>=2&&kb.indexOf(k)>=0);});if(hit.length===1)return{site:hit[0].id,zone:zone,base:base};}
   return{site:0,zone:zone,base:base};
 }
 async function impLoad(file){
   try{toast('엑셀 읽는 중…');var sh=await readXlsx(file),pick=null,list=null;
-    var order=sh.slice().sort(function(a,b){return (/사옥별|사업장별/.test(b.name)?1:0)-(/사옥별|사업장별/.test(a.name)?1:0);});
+    var dk=function(n){var m=/^(20\d{2})[.\-](\d{1,2})[.\-](\d{1,2})\.?$/.exec(String(n).trim());return m?Number(m[1])*10000+Number(m[2])*100+Number(m[3]):0;};
+    var order=sh.slice().sort(function(a,b){var pa=/사옥별|사업장별/.test(a.name)?1:0,pb=/사옥별|사업장별/.test(b.name)?1:0;if(pa!==pb)return pb-pa;return dk(b.name)-dk(a.name);});
     for(var i=0;i<order.length;i++){list=parseStaffSheet(order[i].rows);if(list&&list.length){pick=order[i];break;}}
     if(!pick)throw new Error('「사옥」 제목과 직군(관리·시설·보안·미화…) 제목이 있는 시트를 찾지 못했습니다');
-    S.imp={file:file.name,sheet:pick.name,base:xlsxDate(sh)||today(),dateFound:!!xlsxDate(sh),remember:true,
-      rows:list.filter(function(x){return !x.empty;}).map(function(x){var mm=impMatch(x.raw);return{raw:x.raw,base:mm.base,zone:mm.zone,site:mm.site,auto:!!mm.site,jobs:x.jobs};})};
+    var dt0=xlsxDate([pick])||xlsxDate(sh);
+    S.imp={company:S.company,file:file.name,sheet:pick.name,base:dt0||today(),dateFound:!!dt0,remember:true,
+      rows:list.filter(function(x){return !x.empty;}).map(function(x){var mm=impMatch(x.raw,x.sec);return{raw:x.raw,base:mm.base,zone:mm.zone,site:mm.site,auto:!!mm.site,jobs:x.jobs};})};
     S.keepScroll=true;render();toast('「'+pick.name+'」 시트에서 '+S.imp.rows.length+'줄을 읽었습니다. 확인 후 반영을 누르세요',5000);
   }catch(x){toast(errMsg(x),6000);}
 }
 function impTotals(){var by={};S.imp.rows.forEach(function(r){if(!r.site)return;var t=by[r.site]||(by[r.site]={q:0,c:0,zones:{}});r.zone&&(t.zones[r.zone]=1);Object.keys(r.jobs).forEach(function(j){t.q+=r.jobs[j][0];t.c+=r.jobs[j][1];});});return by;}
 function viewImp(){
   var head='<section class="card"><h3>인원현황 엑셀 반영</h3><p class="muted" style="font-size:12.5px;margin:0 0 10px">「사업장 현황.xlsx」 전체 파일을 고르면 「사옥별 현황」 시트의 직군별 정원·현원을 읽어 결원현황에 반영합니다. 파일은 서버에 올라가지 않고 숫자만 저장되며, 이전 기준일 인원은 기록으로 남습니다.</p>'+
-    '<label class="btn pri" style="display:inline-flex;cursor:pointer">'+I.plus+'엑셀 파일 고르기<input type="file" id="impfile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label></section>';
+    '<p style="font-size:12.5px;margin:0 0 10px">지금 고른 회사: <b>'+esc(S.company)+'</b> — 위에서 회사를 바꾼 뒤 그 회사의 인원 엑셀을 고르세요. (CHM: 사업장 현황.xlsx · CHMS: 인력운영현황통합.xlsx, 날짜 시트 중 가장 최근 것)</p><label class="btn pri" style="display:inline-flex;cursor:pointer">'+I.plus+'엑셀 파일 고르기<input type="file" id="impfile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label></section>';
   if(!S.imp)return head;
   var im=S.imp,opts=activeSites().map(function(s){return '<option value="'+s.id+'">'+esc(s.name)+'</option>';}).join('');
   var ok=im.rows.filter(function(r){return r.site;}).length,miss=im.rows.length-ok,by=impTotals(),ids=Object.keys(by);
@@ -828,7 +860,7 @@ function viewImp(){
     var cur=r.site?totOf(r.site):null;
     return '<tr'+(r.site?'':' style="background:var(--warn-soft,#fff6e0)"')+'><td>'+esc(r.raw)+'</td><td><select data-imp="'+i+'" aria-label="'+esc(r.raw)+' 사업장"><option value="0">— 건너뛰기 —</option>'+opts.replace('value="'+r.site+'"','value="'+r.site+'" selected')+'</select>'+(r.site&&!r.auto?' <span class="chip acc">직접 연결</span>':'')+'</td><td>'+(r.zone?'<span class="chip">'+esc(r.zone)+'</span>':'<span class="muted">—</span>')+'</td><td class="n num">'+c+' / '+q+(q-c>0?' <span class="chip bad">−'+(q-c)+'</span>':'')+'</td></tr>';}).join('');
   var diff=ids.map(function(id){var s=byId(S.sites,Number(id)),t=by[id],cur=totOf(Number(id)),g0=cur[0]-cur[1],g1=t.q-t.c;return{s:s,g0:g0,g1:g1,t:t,cur:cur};}).filter(function(x){return x.s&&(x.g0!==x.g1||x.cur[0]!==x.t.q||x.cur[1]!==x.t.c);});
-  return head+'<section class="card"><h3>미리보기 <span class="chip">'+esc(im.file)+' · '+esc(im.sheet)+'</span></h3>'+
+  return head+'<section class="card"><h3>미리보기 <span class="chip co-chip co-'+im.company.toLowerCase()+'">'+esc(im.company)+' 사업장에 반영</span> <span class="chip">'+esc(im.file)+' · '+esc(im.sheet)+'</span></h3>'+
     '<div class="filters" style="margin-bottom:10px;align-items:center"><label class="field" style="margin:0"><span>기준일 *'+(im.dateFound?' (파일에서 찾음)':'')+'</span><input type="date" id="imp-bd" value="'+esc(im.base)+'"></label>'+
     '<span class="chip good">연결 '+ok+'줄 · '+ids.length+'곳</span>'+(miss?'<span class="chip warn">미연결 '+miss+'줄</span>':'')+(notIn.length?'<span class="chip" title="'+esc(notIn.map(function(s){return s.name;}).join(', '))+'">엑셀에 없는 사업장 '+notIn.length+'곳 (그대로 유지)</span>':'')+'</div>'+
     (miss?'<div class="lnote" style="margin-bottom:10px"><span>노란 줄은 사업장을 자동으로 찾지 못한 줄입니다. 목록에서 사업장을 고르거나 건너뛰세요. 새 사업장이면 설정 › 사업장·고객사에서 먼저 추가하세요.</span></div>':'')+
@@ -1008,7 +1040,7 @@ function staffForm(){
   closeModal();var m=document.createElement('div');m.className='modal';m.id='modal';
   var zoneBox=function(z,i){var val=function(job,k){var r=rows.filter(function(x){return x.zone===z&&x.job===job;})[0];return r?r[k]:0;};
     return '<div class="zonebox" data-z="'+i+'"><div class="zh"><input aria-label="구역 이름" data-zn value="'+esc(z)+'" placeholder="구역 이름 (없으면 비워 두기)"><button type="button" class="btn sm danger" data-zdel>구역 삭제</button></div><div class="tbl-wrap"><table><thead><tr><th>직군</th><th class="n">정원</th><th class="n">현원</th></tr></thead><tbody>'+
-      CATS.map(function(c){return '<tr><td>'+c+'</td><td class="n"><input type="number" min="0" inputmode="numeric" data-job="'+c+'" data-k="quota" value="'+val(c,'quota')+'"></td><td class="n"><input type="number" min="0" inputmode="numeric" data-job="'+c+'" data-k="current" value="'+val(c,'current')+'"></td></tr>';}).join('')+'</tbody></table></div></div>';};
+      CATS.map(function(c){return '<tr><td>'+c+'</td><td class="n"><input type="number" min="0" step="0.5" inputmode="decimal" data-job="'+c+'" data-k="quota" value="'+val(c,'quota')+'"></td><td class="n"><input type="number" min="0" step="0.5" inputmode="decimal" data-job="'+c+'" data-k="current" value="'+val(c,'current')+'"></td></tr>';}).join('')+'</tbody></table></div></div>';};
   m.innerHTML='<form class="mbox" id="mform" novalidate><h2>인원 수정</h2><div class="lnote"><span>새 기준일로 저장하면 이전 기준일 인원은 기록으로 남습니다. 같은 날짜로 저장하면 그 날짜 값을 고칩니다.</span></div>'+
     '<label class="field"><span>기준일 *</span><input type="date" id="f_bd" value="'+today()+'"></label><div id="zones" style="display:grid;gap:10px">'+zones.map(zoneBox).join('')+'</div>'+
     '<button type="button" class="btn sm" id="zadd">'+I.plus+'구역 추가</button><div class="err" id="merr"></div><div class="act"><button type="button" class="btn" data-close>취소</button><button class="btn pri" id="msave">저장</button></div></form>';
@@ -1021,7 +1053,7 @@ function staffForm(){
     var bd=document.getElementById('f_bd').value,er=document.getElementById('merr');if(!bd){er.textContent='기준일을 입력하세요.';return;}
     var out=[],names=[],bad=false;
     m.querySelectorAll('.zonebox').forEach(function(b){var zn=b.querySelector('[data-zn]').value.trim();if(names.indexOf(zn)>=0)bad=true;names.push(zn);
-      CATS.forEach(function(c){var qv=int(b.querySelector('[data-job="'+c+'"][data-k="quota"]').value)||0,cv=int(b.querySelector('[data-job="'+c+'"][data-k="current"]').value)||0;if(qv<0||cv<0)bad=true;
+      CATS.forEach(function(c){var r1=function(x){return Math.round((num(x)||0)*10)/10;};var qv=r1(b.querySelector('[data-job="'+c+'"][data-k="quota"]').value),cv=r1(b.querySelector('[data-job="'+c+'"][data-k="current"]').value);if(qv<0||cv<0)bad=true;
         out.push({site_id:sid,zone:zn,job:c,quota:qv,current:cv,base_date:bd});});});
     if(bad){er.textContent='구역 이름이 겹치거나 음수가 있습니다.';return;}
     if(names.length>1&&names.indexOf('')>=0){er.textContent='구역이 여러 개면 모든 구역에 이름을 적어 주세요.';return;}
@@ -1066,7 +1098,7 @@ function acctMenu(uid){
 }
 function siteForm(s){
   var al=s&&s.aliases||{};
-  openForm({title:s?'사업장 수정':'사업장 추가',fields:[{id:'name',label:'사업장명',required:true,value:s&&s.name},{id:'client',label:'고객사',type:'select',value:s?s.client_id:(S.clients[0]&&S.clients[0].id),options:S.clients.map(function(c){return{value:c.id,label:c.name};}).concat([{value:'new',label:'+ 새 고객사 추가'}])},
+  openForm({title:s?'사업장 수정':'사업장 추가',fields:[[{id:'company',label:'회사',type:'select',value:s?(s.company||'CHM'):S.company,options:COMPANIES},{id:'name',label:'사업장명',required:true,value:s&&s.name}],{id:'client',label:'고객사',type:'select',value:s?s.client_id:(S.clients[0]&&S.clients[0].id),options:S.clients.map(function(c){return{value:c.id,label:c.name};}).concat([{value:'new',label:'+ 새 고객사 추가'}])},
     {id:'newclient',label:'새 고객사명',hidden:true,maxlength:40,placeholder:'예: 현대차그룹'},
     s?null:{id:'addr',label:'주소 (넣으면 건축물대장 자동 조회)',placeholder:'도로명 또는 지번 주소'},
     [{id:'safety',label:'안전보건점검 시스템 이름',value:al.safety,placeholder:'같으면 비워 두기 · 여러 개는 쉼표'},{id:'edu',label:'교육관리 시스템 이름',value:al.edu,placeholder:'같으면 비워 두기'}],
@@ -1074,10 +1106,10 @@ function siteForm(s){
     onChange:function(e,val){if(e.target.id==='f_client'){var w=document.querySelector('[data-wrap="newclient"]');if(w){w.hidden=val.client!=='new';if(!w.hidden)document.getElementById('f_newclient').focus();}}},
     onSave:async function(v){var aliases=Object.assign({},al);['safety','edu'].forEach(function(k){if(v[k])aliases[k]=v[k];else delete aliases[k];});
       var cid=v.client==='new'?await newClient(v.newclient):Number(v.client);
-      var row={name:v.name,client_id:cid,aliases:aliases};if(!s&&v.addr)row.addr=v.addr;
+      var row={company:v.company,name:v.name,client_id:cid,aliases:aliases};if(!s&&v.addr)row.addr=v.addr;
       if(s){row.status=v.archived?'보관':'운영';row.archived_at=v.archived?(s.archived_at||new Date().toISOString()):null;await q(sb.from('site_sites').update(row).eq('id',s.id));}
       else{row.sort=S.sites.reduce(function(m,x){return Math.max(m,x.sort||0);},0)+1;var ins=await q(sb.from('site_sites').insert(row).select().single());S.siteId=ins.id;}
-      await loadAll();S.keepScroll=true;render();toast('사업장을 저장했습니다');
+      await loadAll();if(v.company!==S.company){S.company=v.company;try{localStorage.setItem('chm-sites-company',v.company);}catch(e){}}S.keepScroll=true;render();toast('사업장을 저장했습니다');
       if(!s&&v.addr){toast('건축물대장 조회 중…',6000);bldSync(S.siteId,null);}}});
 }
 /* 주소는 있는데 아직 건축물대장을 안 불러온 사업장을 한 곳씩 차례로 조회 (관리자) */
@@ -1202,6 +1234,7 @@ app.addEventListener('click',async function(e){
   if(el.dataset.zone!==undefined&&el.classList.contains('fchip')&&el.closest('.detail')){S.zone=el.dataset.zone;document.getElementById('detail').innerHTML=viewDetail();return;}
   if(el.id==='fs'){S.short=!S.short;render();return;}
   if(el.id==='fm'){S.mine=!S.mine;render();return;}
+  if(el.dataset.co){setCompany(el.dataset.co);return;}
   if(el.dataset.vp){S.vp=el.dataset.vp;render();return;}
   if(el.dataset.stab){S.stab=el.dataset.stab;if(S.stab==='audit')S.audit=null;render();return;}
   if(el.dataset.tel){if(el.textContent===el.dataset.full)return;var p=el.dataset.tel.split(':');
