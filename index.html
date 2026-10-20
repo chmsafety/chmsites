@@ -73,6 +73,7 @@ h1,h2,h3{margin:0;text-wrap:balance}
 .card h3 .r{margin-left:auto}
 .chip{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:500;padding:1px 8px;border-radius:999px;background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line);white-space:nowrap}
 .chip.acc{background:var(--accent-soft);color:var(--accent-ink);border-color:transparent}
+.chip.src{background:#EEF2FF;color:#3730A3;border-color:transparent}.chip.src a{color:inherit;text-decoration:none}
 .chip.warn{background:var(--warn-soft);color:var(--warn);border-color:transparent}
 .chip.bad{background:var(--bad-soft);color:var(--bad);border-color:transparent}
 .chip.good{background:var(--good-soft);color:var(--good);border-color:transparent}
@@ -541,6 +542,10 @@ function viewDash(){
    '<section class="card"><h3>최근 방문기록<button type="button" class="btn sm r" data-nav="visits">전체 보기</button></h3><div class="rows">'+vrows+'</div></section></div>';
 }
 function purposeText(v){return v.purpose==='기타'&&v.purpose_etc?v.purpose_etc:v.purpose;}
+// 다른 앱에서 연동된 방문기록(source_app) — 2026-10-20
+var VISIT_SRC={safety:{label:'안전보건점검',url:'https://chmsafety.github.io/safety-inspection/'},edu:{label:'교육관리',url:'https://chmsafety.github.io/chmedu/'},note:{label:'현장활동보고서',url:'https://chmsafety.github.io/note/'}};
+function visitSrcChip(v){if(!v.source_app)return '';var m=VISIT_SRC[v.source_app]||{label:v.source_app,url:''};return '<span class="chip src" title="'+esc(m.label)+' 앱에서 자동으로 연동된 기록">'+(m.url?'<a href="'+esc(m.url)+'" target="_blank" rel="noopener">':'')+'연동 · '+esc(m.label)+(m.url?'</a>':'')+'</span>';}
+function visitWho(v){var h='';if(v.visitor)h+='<span>방문자 <b>'+esc(v.visitor)+'</b></span>';else if(v.source_app)h+='<span>방문자 본인</span>';if(v.attendee)h+='<span>미팅자 '+esc(v.attendee)+'</span>';if(!v.source_app)h+='<span>· 작성 '+esc(memberName(v.created_by))+'</span>';return h;}
 function visitRow(v){var s=byId(S.sites,v.site_id);return '<button type="button" class="rowi" data-go="'+v.site_id+'" data-gotab="basic"><span class="num muted" style="font-size:12px">'+esc(v.visit_date.slice(5))+'</span><span class="chip acc">'+esc(purposeText(v))+'</span><span class="grow"><b>'+esc(s?s.name:'')+'</b> <span class="muted">· '+esc(v.content)+'</span></span></button>';}
 
 /* ---------- 사업장 목록 ---------- */
@@ -601,7 +606,7 @@ function tabBasic(s,ed){
    '<dt>건축물대장</dt><dd>'+(s.building_id?'<span class="chip good">빌딩정보시스템 연결</span>'+(s.building_synced_at?' <span class="muted" style="font-size:12px">'+esc(dt(s.building_synced_at).slice(0,10))+' 조회</span>':''):'<span class="muted">'+(s.addr?'아직 불러오지 않음':'주소를 넣으면 자동으로 불러옵니다')+'</span>')+
    (ed&&s.addr?' <button type="button" class="btn sm" data-act="bld-sync">'+(s.building_id?'다시 불러오기':'불러오기')+'</button>':'')+'</dd>'+(s.memo?'<dt>메모</dt><dd style="white-space:pre-wrap">'+esc(s.memo)+'</dd>':'')+'</dl><div style="font-size:12px;color:var(--ink-3);margin:12px 0 4px">현장 사진</div>'+photoStrip('site',s.id,ed,'현장 사진이 없습니다')+'</section>'+
    '<section class="card"><h3>방문기록 <span class="chip">'+vs.length+'건</span>'+(ed?'<button type="button" class="btn sm r" data-act="visit-add">'+I.plus+'방문기록</button>':'')+'</h3>'+
-   (vs.length?'<div class="tl">'+vs.map(function(v){return '<div class="tli"><span class="d">'+esc(v.visit_date)+'</span><div class="c"><div class="meta"><span class="chip acc">'+esc(purposeText(v))+'</span>'+(v.attendee?'<span>미팅자 '+esc(v.attendee)+'</span>':'')+'<span>· 작성 '+esc(memberName(v.created_by))+'</span>'+(ed?'<button type="button" class="linkbtn" data-act="visit-edit" data-id="'+v.id+'">수정</button>':'')+'</div><span style="white-space:pre-wrap">'+esc(v.content)+'</span>'+photoStrip('visit',v.id,ed)+'</div></div>';}).join('')+'</div>':'<div class="empty">방문기록이 없습니다.</div>')+'</section>';
+   (vs.length?'<div class="tl">'+vs.map(function(v){return '<div class="tli"><span class="d">'+esc(v.visit_date)+'</span><div class="c"><div class="meta"><span class="chip acc">'+esc(purposeText(v))+'</span>'+visitSrcChip(v)+visitWho(v)+(ed?'<button type="button" class="linkbtn" data-act="visit-edit" data-id="'+v.id+'">수정</button>':'')+'</div><span style="white-space:pre-wrap">'+esc(v.content)+'</span>'+photoStrip('visit',v.id,ed)+'</div></div>';}).join('')+'</div>':'<div class="empty">방문기록이 없습니다.</div>')+'</section>';
 }
 function tabStaff(s,ed){
   var zones=zonesOf(s.id);var multi=zones.length>1||(zones.length===1&&zones[0]!=='');
@@ -703,7 +708,7 @@ function viewVisits(){
   var anyEdit=isAdmin()||S.me.sites.length>0;
   return '<div class="page">'+coTabs()+'<div class="ph"><div><h1>방문기록</h1><p>전 사업장 방문·미팅 기록, 최신순 (최근 500건)</p></div>'+(anyEdit?'<button type="button" class="btn pri" data-act="visit-add-any">'+I.plus+'방문기록</button>':'')+'</div>'+
    '<div class="filters">'+ps.map(function(p){return '<button type="button" class="fchip" data-vp="'+esc(p)+'" aria-pressed="'+(S.vp===p)+'">'+esc(p)+'</button>';}).join('')+'</div>'+
-   '<section class="card">'+(list.length?'<div class="tl">'+list.map(function(v){var s=byId(S.sites,v.site_id);return '<div class="tli"><span class="d">'+esc(v.visit_date)+'</span><div class="c"><div class="meta"><button type="button" class="btn sm" data-go="'+v.site_id+'" data-gotab="basic">'+esc(s?s.name:'')+'</button><span class="chip acc">'+esc(purposeText(v))+'</span><span>'+(v.attendee?'미팅자 '+esc(v.attendee)+' · ':'')+'작성 '+esc(memberName(v.created_by))+'</span></div><span style="white-space:pre-wrap">'+esc(v.content)+'</span></div></div>';}).join('')+'</div>':'<div class="empty">해당 기록이 없습니다.</div>')+'</section></div>';
+   '<section class="card">'+(list.length?'<div class="tl">'+list.map(function(v){var s=byId(S.sites,v.site_id);return '<div class="tli"><span class="d">'+esc(v.visit_date)+'</span><div class="c"><div class="meta"><button type="button" class="btn sm" data-go="'+v.site_id+'" data-gotab="basic">'+esc(s?s.name:'')+'</button><span class="chip acc">'+esc(purposeText(v))+'</span>'+visitSrcChip(v)+visitWho(v)+'</div><span style="white-space:pre-wrap">'+esc(v.content)+'</span></div></div>';}).join('')+'</div>':'<div class="empty">해당 기록이 없습니다.</div>')+'</section></div>';
 }
 
 /* ---------- 설정 ---------- */
@@ -988,12 +993,14 @@ function visitForm(v,anySite){
   if(anySite)fields.push({id:'site',label:'사업장',type:'select',value:editable[0].id,options:editable.map(function(s){return{value:s.id,label:s.name};})});
   fields.push([{id:'visit_date',label:'방문일',type:'date',required:true,value:v?v.visit_date:today()},{id:'purpose',label:'방문목적',type:'select',value:v?v.purpose:purposes[0],options:purposes}]);
   fields.push({id:'purpose_etc',label:'기타 목적',value:v&&v.purpose_etc,hidden:!(v&&v.purpose==='기타')});
+  fields.push({id:'visitor',label:'방문자',value:v&&v.visitor,placeholder:'본인이 방문했으면 비워 두세요 (다른 사람이면 이름)'});
   fields.push({id:'attendee',label:'미팅자',value:v&&v.attendee,list:who,placeholder:'고르거나 직접 입력'});
   fields.push({id:'content',label:'방문내용',type:'textarea',required:true,value:v&&v.content,placeholder:'논의한 내용, 요청사항, 후속 조치'});
-  openForm({title:v?'방문기록 수정':'방문기록 추가',fields:fields,
+  var linked=v&&v.source_app?(VISIT_SRC[v.source_app]||{label:v.source_app}).label:'';
+  openForm({title:v?(linked?'방문기록 수정 (연동 · '+linked+')':'방문기록 수정'):'방문기록 추가',fields:fields,
     onChange:function(e,val){if(e.target.id==='f_purpose'){var w=document.querySelector('[data-wrap="purpose_etc"]');if(w)w.hidden=val.purpose!=='기타';}},
     onDelete:v?async function(){await removePhotosFor('visit',v.id);await q(sb.from('site_visits').delete().eq('id',v.id));await afterSave('방문기록을 삭제했습니다',sid);}:null,
-    onSave:async function(x){var site=anySite?Number(x.site):sid;var row={site_id:site,visit_date:x.visit_date,purpose:x.purpose,purpose_etc:x.purpose==='기타'?(x.purpose_etc||null):null,attendee:x.attendee||null,content:x.content};
+    onSave:async function(x){var site=anySite?Number(x.site):sid;var row={site_id:site,visit_date:x.visit_date,purpose:x.purpose,purpose_etc:x.purpose==='기타'?(x.purpose_etc||null):null,attendee:x.attendee||null,visitor:(x.visitor||'').trim()||null,content:x.content};
       if(v)await q(sb.from('site_visits').update(row).eq('id',v.id));else await q(sb.from('site_visits').insert(row));
       if(anySite){toast('방문기록을 저장했습니다');S.visits=await q(sb.from('site_visits').select('*').order('visit_date',{ascending:false}).order('id',{ascending:false}).limit(500));S.detailFor=null;S.keepScroll=true;render();}
       else await afterSave('방문기록을 저장했습니다',site);}});
