@@ -483,8 +483,8 @@ async function loadAll(){
 }
 /* 빌딩정보시스템(buildings)에 연결된 사업장의 좌표 — 위치 자동 인식용 */
 async function loadCoords(){
-  var ids=S.sites.filter(function(x){return x.building_id;}).map(function(x){return x.building_id;});S.bld={};if(!ids.length)return;
-  try{var rows=await q(sb.from('buildings').select('id,lat,lng').in('id',ids));rows.forEach(function(b){if(b.lat!=null&&b.lng!=null)S.bld[b.id]={lat:Number(b.lat),lng:Number(b.lng)};});}catch(e){}
+  S.bld={};
+  try{var rows=await q(sb.rpc('site_building_coords'));(rows||[]).forEach(function(b){if(b.lat!=null&&b.lng!=null)S.bld[b.id]={lat:Number(b.lat),lng:Number(b.lng)};});}catch(e){}
 }
 /* 지금 고른 회사(CHM·CHMS)의 운영 중 사업장 — 대시보드·목록·설정이 모두 이 목록을 씀 */
 function activeSites(){return S.sites.filter(function(s){return s.status==='운영'&&(s.company||'CHM')===S.company;});}
