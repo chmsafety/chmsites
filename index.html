@@ -191,6 +191,14 @@ td.n,th.n{text-align:right}
 .otp{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
 .otp input{text-align:center;font-family:var(--mono);font-size:18px;padding:8px 0;border:1px solid var(--line);border-radius:8px;background:var(--surface);width:100%}
 .lnote{font-size:12px;color:var(--ink-3);display:grid;gap:3px}
+.vbox{border:1px dashed var(--line);border-radius:10px;padding:10px;margin-bottom:12px;display:grid;gap:8px;background:var(--surface-2,transparent)}
+.vbox .vhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.vbox .vhead b{font-size:13px}
+.vbox .vst{font-size:12px;color:var(--ink-3);margin-left:auto}
+.vbox textarea{width:100%;min-height:72px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface);font-size:13px}
+.vbox .rec{background:var(--bad);border-color:var(--bad);color:#fff}
+.vbox .rec .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#fff;margin-right:6px;animation:vblink 1s infinite}
+@keyframes vblink{50%{opacity:.2}}
 
 /* 모달·토스트 */
 .modal{position:absolute;inset:0;background:rgba(10,20,18,.45);display:grid;place-items:center;z-index:20;padding:16px}
@@ -282,7 +290,8 @@ body{padding:0;overflow:hidden}
 var SB_URL='https://dbymktwxokbvfshlztrg.supabase.co';
 var SB_KEY='sb_publishable_RHDgmlGV-m946etnPHfXaw_vy2u8uCp';
 var DOMAIN='sites.chm.local';
-var VERSION='7.3단계 · 2026-09-30';
+var VERSION='7.5단계 · 2026-11-03';
+var GEO_RADIUS=250; // 현재 위치에서 이 거리(m) 안에 있는 사업장을 '도착'으로 봄
 var IDLE_MIN=30;
 var CATS=['관리','사무지원','시설','보안','CS','미화'];
 var EQ_TYPES={'냉동기':['터보','흡수식','스크류','히트펌프','기타'],'보일러':['관류','노통연관','온수','전기','기타']};
@@ -295,7 +304,7 @@ var sb=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,aut
 /* ---------- 상태 ---------- */
 var S={me:null,clients:[],sites:[],staff:[],codes:[],members:[],assign:[],visits:[],managers:[],
   view:'dash',siteId:null,tab:'client',open:false,q:'',client:'전체',short:false,mine:false,zone:'전체',vp:'전체',stab:'acct',su:null,showArchived:false,
-  detail:null,detailFor:null,audit:null};
+  detail:null,detailFor:null,audit:null,bld:{},geo:{at:0,site:null}};
 var COMPANIES=['CHM','CHMS'];
 try{var sc=localStorage.getItem('chm-sites-company');if(COMPANIES.indexOf(sc)>=0)S.company=sc;}catch(e){}
 if(!S.company)S.company='CHM';
@@ -375,7 +384,7 @@ async function afterSignIn(){
     var rec=null;try{rec=sessionStorage.getItem('chm-sites-rec');}catch(x){}
     if(!rec){sb.rpc('site_record_login').then(function(){});try{sessionStorage.setItem('chm-sites-rec','1');}catch(x){}}
     S.me=me; // 비밀번호 변경·OTP까지 모두 통과한 뒤에만 로그인 상태로 인정
-    await loadAll();startIdle();render();
+    await loadAll();startIdle();render();geoAuto();
   }catch(e){showLogin(errMsg(e));}
 }
 
@@ -470,6 +479,12 @@ async function loadAll(){
   if(!S.siteId||!byId(S.sites,S.siteId)){var f=activeSites()[0];S.siteId=f?f.id:null;}
   if(!S.su){var u=S.members.filter(function(m){return m.role!=='admin';})[0];S.su=u?u.user_id:null;}
   S.detailFor=null;
+  await loadCoords();
+}
+/* 빌딩정보시스템(buildings)에 연결된 사업장의 좌표 — 위치 자동 인식용 */
+async function loadCoords(){
+  var ids=S.sites.filter(function(x){return x.building_id;}).map(function(x){return x.building_id;});S.bld={};if(!ids.length)return;
+  try{var rows=await q(sb.from('buildings').select('id,lat,lng').in('id',ids));rows.forEach(function(b){if(b.lat!=null&&b.lng!=null)S.bld[b.id]={lat:Number(b.lat),lng:Number(b.lng)};});}catch(e){}
 }
 /* 지금 고른 회사(CHM·CHMS)의 운영 중 사업장 — 대시보드·목록·설정이 모두 이 목록을 씀 */
 function activeSites(){return S.sites.filter(function(s){return s.status==='운영'&&(s.company||'CHM')===S.company;});}
@@ -535,7 +550,7 @@ function viewDash(){
   var bars=CATS.map(function(c,k){var g=cat[k][0]-cat[k][1];return '<div class="bar"><span>'+c+'</span><span class="tr"><span class="fl" style="width:'+(cat[k][1]/max*100)+'%"></span></span><span class="v">'+fmt(cat[k][1])+' / '+fmt(cat[k][0])+(g>0?' <em>−'+g+'</em>':'')+'</span></div>';}).join('');
   var shortRows=short.slice(0,10).map(function(x){return '<button type="button" class="rowi" data-go="'+x.s.id+'"><span class="grow"><b>'+esc(x.s.name)+'</b> <span class="muted">· '+esc(clientName(x.s.client_id))+'</span></span><span class="num muted">'+x.t[1]+'/'+x.t[0]+'</span><span class="chip bad">결원 '+x.g+'</span></button>';}).join('')||'<div class="empty">결원이 있는 사업장이 없습니다.</div>';
   var vrows=coVisits().slice(0,6).map(visitRow).join('')||'<div class="empty">아직 방문기록이 없습니다.</div>';
-  return '<div class="page">'+coTabs()+'<div class="ph"><div><h1>대시보드 <span class="chip co-chip co-'+S.company.toLowerCase()+'">'+esc(S.company)+'</span></h1><p>'+esc(basis)+' · 본사 제외</p></div><div class="actions">'+(isAdmin()?'<button type="button" class="btn sm" data-act="go-imp">엑셀로 인원 반영</button>':'')+'<button type="button" class="btn sm" data-act="reload">새로고침</button></div></div>'+
+  return '<div class="page">'+coTabs()+'<div class="ph"><div><h1>대시보드 <span class="chip co-chip co-'+S.company.toLowerCase()+'">'+esc(S.company)+'</span></h1><p>'+esc(basis)+' · 본사 제외</p></div><div class="actions">'+(isAdmin()?'<button type="button" class="btn sm" data-act="go-imp">엑셀로 인원 반영</button>':'')+geoBtn()+'<button type="button" class="btn sm" data-act="reload">새로고침</button></div></div>'+
    '<div class="kpis"><div class="kpi"><small>사업장</small><b>'+act.length+'</b></div><div class="kpi"><small>정원</small><b>'+fmt(tot[0])+'</b></div><div class="kpi"><small>현원</small><b>'+fmt(tot[1])+'</b></div><div class="kpi alert"><small>결원</small><b>'+fmt(gap)+'</b></div><div class="kpi"><small>충원율</small><b>'+rate+'%</b></div></div>'+
    '<div class="dgrid"><section class="card"><h3>직군별 현원 / 정원</h3><div class="bars">'+bars+'</div></section>'+
    '<section class="card"><h3>결원이 있는 사업장 <span class="chip bad r">'+short.length+'곳</span></h3><div class="rows">'+shortRows+'</div></section></div>'+
@@ -559,7 +574,7 @@ function viewSites(){
   var list=filtered();
   var items=list.map(function(s){var t=totOf(s.id),g=t[0]-t[1],mine=!isAdmin()&&S.me.sites.indexOf(s.id)>=0,zn=zonesOf(s.id).filter(Boolean).length;
     return '<button type="button" class="si" data-site="'+s.id+'"'+(S.siteId===s.id?' aria-current="true"':'')+'><span class="nm">'+esc(s.name)+(mine?'<span class="star" title="담당">★</span>':'')+'</span><span class="hc"><span class="num">'+t[1]+'/'+t[0]+'</span>'+(g>0?'<small class="chip bad">−'+g+'</small>':'')+'</span><span class="sub">'+esc(clientName(s.client_id))+(zn>1?' · 구역 '+zn:'')+'</span></button>';}).join('');
-  return '<div class="sites" data-open="'+(S.open?1:0)+'"><section class="list"><div class="lhead">'+coTabs()+'<div class="top"><h2>사업장</h2>'+(isAdmin()?'<button type="button" class="btn sm" data-act="site-add">'+I.plus+'추가</button>':'')+'</div>'+
+  return '<div class="sites" data-open="'+(S.open?1:0)+'"><section class="list"><div class="lhead">'+coTabs()+'<div class="top"><h2>사업장</h2>'+geoBtn()+(isAdmin()?'<button type="button" class="btn sm" data-act="site-add">'+I.plus+'추가</button>':'')+'</div>'+
    '<label class="search">'+I.search+'<input id="q" type="search" autocomplete="nope" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="사업장·고객사 검색" value="'+esc(S.q)+'"></label>'+
    '<div class="filters"><select id="fc" aria-label="고객사"><option value="전체">고객사 전체</option>'+S.clients.filter(function(c){return activeSites().some(function(s){return s.client_id===c.id;});}).map(function(c){return '<option value="'+c.id+'"'+(S.client===String(c.id)?' selected':'')+'>'+esc(c.name)+'</option>';}).join('')+'</select>'+
    '<button type="button" class="fchip" id="fs" aria-pressed="'+S.short+'">결원</button>'+(!isAdmin()?'<button type="button" class="fchip" id="fm" aria-pressed="'+S.mine+'">★ 내 담당</button>':'')+'</div></div>'+
@@ -997,13 +1012,57 @@ function visitForm(v,anySite){
   fields.push({id:'attendee',label:'미팅자',value:v&&v.attendee,list:who,placeholder:'고르거나 직접 입력'});
   fields.push({id:'content',label:'방문내용',type:'textarea',required:true,value:v&&v.content,placeholder:'논의한 내용, 요청사항, 후속 조치'});
   var linked=v&&v.source_app?(VISIT_SRC[v.source_app]||{label:v.source_app}).label:'';
-  openForm({title:v?(linked?'방문기록 수정 (연동 · '+linked+')':'방문기록 수정'):'방문기록 추가',fields:fields,
+  var m=openForm({title:v?(linked?'방문기록 수정 (연동 · '+linked+')':'방문기록 수정'):'방문기록 추가',fields:fields,intro:v?'':voiceIntro(),
     onChange:function(e,val){if(e.target.id==='f_purpose'){var w=document.querySelector('[data-wrap="purpose_etc"]');if(w)w.hidden=val.purpose!=='기타';}},
     onDelete:v?async function(){await removePhotosFor('visit',v.id);await q(sb.from('site_visits').delete().eq('id',v.id));await afterSave('방문기록을 삭제했습니다',sid);}:null,
     onSave:async function(x){var site=anySite?Number(x.site):sid;var row={site_id:site,visit_date:x.visit_date,purpose:x.purpose,purpose_etc:x.purpose==='기타'?(x.purpose_etc||null):null,attendee:x.attendee||null,visitor:(x.visitor||'').trim()||null,content:x.content};
       if(v)await q(sb.from('site_visits').update(row).eq('id',v.id));else await q(sb.from('site_visits').insert(row));
       if(anySite){toast('방문기록을 저장했습니다');S.visits=await q(sb.from('site_visits').select('*').order('visit_date',{ascending:false}).order('id',{ascending:false}).limit(500));S.detailFor=null;S.keepScroll=true;render();}
       else await afterSave('방문기록을 저장했습니다',site);}});
+  if(!v)voiceBind(m,anySite?editable:[byId(S.sites,sid)].filter(Boolean),purposes);
+}
+/* ---------- 방문기록 음성 입력 (2026-11-03) ----------
+   브라우저 받아쓰기(Web Speech API, 무료) → 서버 함수 site-voice(Claude)로 항목 정리 → 폼에 채움 → 사용자가 확인·수정 후 저장 */
+function voiceIntro(){
+  var ok=!!(window.SpeechRecognition||window.webkitSpeechRecognition);
+  return '<div class="vbox" id="vbox"><div class="vhead"><b>🎤 음성으로 작성</b>'+(ok?'<button type="button" class="btn sm" id="vrec">말하기 시작</button>':'<span class="muted" style="font-size:12px">이 브라우저는 받아쓰기를 지원하지 않습니다 (크롬·사파리 권장). 아래에 직접 적어도 됩니다.</span>')+'<button type="button" class="btn sm pri" id="vgo">양식으로 정리</button><span class="vst" id="vst"></span></div>'+
+   '<textarea id="vtxt" placeholder="예) 오늘 판교 N타워 방문. 냉동기 2호기 소음 점검, 베어링 교체 필요해서 업체 견적 요청하기로 함. 총무팀 김과장과 미팅…"></textarea>'+
+   '<div class="lnote"><span>말한 내용이 글로 쌓이면 「양식으로 정리」를 누르세요. 방문일·목적·미팅자·내용이 아래 칸에 채워지며, 확인·수정한 뒤 저장하면 됩니다.</span></div></div>';
+}
+function voiceBind(m,siteList,purposes){
+  var box=m.querySelector('#vbox');if(!box)return;
+  var ta=box.querySelector('#vtxt'),st=box.querySelector('#vst'),rec=box.querySelector('#vrec'),go=box.querySelector('#vgo');
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition,r=null,on=false,fin='',interim='';
+  function show(){ta.value=(fin+(interim?' '+interim:'')).replace(/^\s+/,'');ta.scrollTop=ta.scrollHeight;}
+  function start(){
+    r=new SR();r.lang='ko-KR';r.continuous=true;r.interimResults=true;
+    fin=ta.value?ta.value.trim()+' ':'';interim='';
+    r.onresult=function(e){interim='';for(var i=e.resultIndex;i<e.results.length;i++){var t=e.results[i][0].transcript;if(e.results[i].isFinal)fin+=t.trim()+' ';else interim+=t;}show();};
+    r.onerror=function(e){if(e.error==='not-allowed'){st.textContent='마이크 권한을 허용해 주세요';stop();}else if(e.error!=='no-speech'&&e.error!=='aborted'){st.textContent='오류: '+e.error;}};
+    r.onend=function(){if(on){try{r.start();}catch(x){}}};
+    try{r.start();on=true;rec.className='btn sm rec';rec.innerHTML='<span class="dot"></span>듣는 중 · 누르면 멈춤';st.textContent='';}
+    catch(x){st.textContent='마이크를 열지 못했습니다';}
+  }
+  function stop(){on=false;if(r){try{r.stop();}catch(x){}}rec.className='btn sm';rec.textContent='이어서 말하기';interim='';show();}
+  if(rec)rec.addEventListener('click',function(){on?stop():start();});
+  go.addEventListener('click',async function(){
+    if(on)stop();var text=ta.value.trim();
+    if(text.length<5){st.textContent='먼저 말하거나 내용을 적어 주세요';return;}
+    go.disabled=true;go.textContent='정리 중…';st.textContent='';
+    try{var res=await sb.functions.invoke('site-voice',{body:{text:text,today:today(),purposes:purposes,sites:siteList.map(function(s){return{id:s.id,name:s.name};})}});
+      if(res.error){var msg=res.error.message;try{var j=await res.error.context.json();if(j&&j.error)msg=j.error;}catch(e){}throw new Error(msg);}
+      var d=res.data||{};var set=function(id,val){var el=document.getElementById('f_'+id);if(el&&val!=null)el.value=val;};
+      if(d.site_id&&document.getElementById('f_site'))set('site',d.site_id);
+      set('visit_date',d.visit_date);set('purpose',d.purpose);
+      var w=document.querySelector('[data-wrap="purpose_etc"]');if(w)w.hidden=d.purpose!=='기타';set('purpose_etc',d.purpose_etc||'');
+      set('visitor',d.visitor||'');set('attendee',d.attendee||'');set('content',d.content);
+      st.textContent='정리했습니다 — 내용을 확인·수정한 뒤 저장하세요'+(siteList.length>1&&!d.site_id?' (사업장은 직접 고르세요)':'');
+      var c=document.getElementById('f_content');if(c){c.style.minHeight='160px';c.scrollIntoView({behavior:'smooth',block:'center'});}
+    }catch(x){st.textContent='정리 실패: '+errMsg(x);}
+    go.disabled=false;go.textContent='양식으로 정리';
+  });
+  m.addEventListener('click',function(e){if(e.target===m||e.target.hasAttribute('data-close'))stop();});
+  m.addEventListener('keydown',function(e){if(e.key==='Escape')stop();});
 }
 function managerForm(m){
   var sid=S.siteId,roles=codes('manager_role').map(function(c){return c.label;});if(m&&roles.indexOf(m.role)<0&&m.role!=='직접입력')roles.push(m.role);roles.push('직접입력');
@@ -1160,7 +1219,7 @@ function clientForm(c){
 }
 
 /* ---------- 내 계정 (폰) ---------- */
-function meMenu(){var m=openForm({title:S.me.name+' ('+S.me.login_id+')',fields:[{id:'x',type:'info',html:'<span>'+(isAdmin()?'관리자 · 전체 입력·수정':'담당 사업장 '+S.me.sites.length+'곳')+'</span><div class="actions" style="margin-top:8px"><button type="button" class="btn" data-act="pw">비밀번호 변경</button><button type="button" class="btn" data-act="logout">로그아웃</button>'+installHtml().replace('<button type="button"','<button type="button" class="btn"')+'</div><span class="muted">'+VERSION+'</span>'}],saveLabel:'닫기',onSave:function(){}});m.querySelector('[data-close]').remove();}
+function meMenu(){var m=openForm({title:S.me.name+' ('+S.me.login_id+')',fields:[{id:'x',type:'info',html:'<span>'+(isAdmin()?'관리자 · 전체 입력·수정':'담당 사업장 '+S.me.sites.length+'곳')+'</span><div class="actions" style="margin-top:8px"><button type="button" class="btn" data-act="pw">비밀번호 변경</button><button type="button" class="btn" data-act="logout">로그아웃</button><button type="button" class="btn" data-act="geo-toggle">📍 위치 자동 열기: '+(geoOn()?'켜짐':'꺼짐')+'</button>'+installHtml().replace('<button type="button"','<button type="button" class="btn"')+'</div><span class="muted">'+VERSION+'</span>'}],saveLabel:'닫기',onSave:function(){}});m.querySelector('[data-close]').remove();}
 
 
 /* ---------- 사진 ---------- */
@@ -1260,6 +1319,8 @@ app.addEventListener('click',async function(e){
     case 'logout':closeModal();logout();return;
     case 'pw':closeModal();showChangePw(false);return;
     case 'menu':meMenu();return;
+    case 'geo':geoCheck(true,el);return;
+    case 'geo-toggle':try{localStorage.setItem('chm-sites-geo',geoOn()?'off':'on');}catch(x){}closeModal();toast(geoOn()?'사업장에 도착하면 사업장현황을 자동으로 엽니다':'위치 자동 열기를 껐습니다 (📍 버튼으로는 계속 찾을 수 있습니다)');if(geoOn())geoCheck(false);return;
     case 'reload':el.disabled=true;try{await loadAll();render();toast('새로 불러왔습니다');}catch(x){toast(errMsg(x));el.disabled=false;}return;
     case 'back':S.open=false;document.querySelector('.sites').setAttribute('data-open','0');return;
     case 'contact-add':contactForm(null);return;
@@ -1323,7 +1384,40 @@ app.addEventListener('submit',async function(e){
 });
 sb.auth.onAuthStateChange(function(ev){if(ev==='SIGNED_OUT'&&S.me){S.me=null;stopIdle();showLogin('로그아웃되었습니다.');}
   else if(ev==='TOKEN_REFRESHED'&&S.me)setTimeout(ensureAal,0);});
-async function onReturn(){if(!S.me)return;if(!(await ensureAal()))return;
+/* ---------- 위치 자동 인식 (2026-11-03) ----------
+   사업장에 도착하면(GPS 기준 GEO_RADIUS m 안) 그 사업장의 현황 화면을 자동으로 연다.
+   좌표는 빌딩정보시스템(buildings) 것을 쓰므로, 주소를 넣고 건축물대장을 불러온 사업장만 인식된다. 위치는 저장하지 않는다. */
+function geoOn(){try{return localStorage.getItem('chm-sites-geo')!=='off';}catch(e){return true;}}
+function geoBtn(){return navigator.geolocation?'<button type="button" class="btn sm" data-act="geo" title="현재 위치에서 가장 가까운 사업장 열기">📍 내 위치</button>':'';}
+function geoDist(a,b,c,d){var R=6371000,x=(c-a)*Math.PI/180,y=(d-b)*Math.PI/180,h=Math.sin(x/2)*Math.sin(x/2)+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(y/2)*Math.sin(y/2);return 2*R*Math.asin(Math.sqrt(h));}
+function geoNear(lat,lng){var best=null;
+  S.sites.forEach(function(x){if(x.status!=='운영'||!x.building_id)return;var b=S.bld[x.building_id];if(!b)return;var d=geoDist(lat,lng,b.lat,b.lng);if(!best||d<best.d)best={s:x,d:d};});
+  return best;}
+function geoAuto(){if(!S.me||!geoOn()||!navigator.geolocation)return;if(document.getElementById('modal'))return; // 입력 중이면 방해하지 않음
+  if(Date.now()-S.geo.at<90e3)return;try{if(sessionStorage.getItem('chm-sites-geo-denied'))return;}catch(e){}geoCheck(false);}
+function geoCheck(manual,btn){
+  if(!navigator.geolocation){if(manual)toast('이 기기에서는 위치를 쓸 수 없습니다');return;}
+  S.geo.at=Date.now();if(btn){btn.disabled=true;btn.textContent='📍 찾는 중…';}
+  var done=function(){if(btn){btn.disabled=false;btn.textContent='📍 내 위치';}};
+  navigator.geolocation.getCurrentPosition(function(pos){done();
+    var c=pos.coords,n=geoNear(c.latitude,c.longitude);
+    if(!n){if(manual)toast('좌표가 등록된 사업장이 없습니다');return;}
+    var lim=Math.max(GEO_RADIUS,Math.min(c.accuracy||0,600)); // 위치 오차가 크면 그만큼만 넓게 봄
+    if(n.d>lim){if(manual)toast('가까운 사업장이 없습니다 · 가장 가까운 곳: '+n.s.name+' ('+(n.d<1000?Math.round(n.d)+'m':(n.d/1000).toFixed(1)+'km')+')',5000);return;}
+    if(!manual&&S.geo.site===n.s.id)return; // 같은 사업장에 머무는 동안은 한 번만
+    S.geo.site=n.s.id;geoOpen(n.s,n.d);
+  },function(err){done();
+    if(err.code===1){try{sessionStorage.setItem('chm-sites-geo-denied','1');}catch(e){}if(manual)toast('위치 권한이 꺼져 있습니다. 브라우저·앱 설정에서 이 사이트의 위치 사용을 허용해 주세요',6000);}
+    else if(manual)toast('현재 위치를 확인하지 못했습니다'+(err.code===3?' (시간 초과)':'')+'. 잠시 후 다시 시도하세요');
+  },{enableHighAccuracy:true,timeout:12000,maximumAge:30000});
+}
+function geoOpen(site,d){
+  var co=site.company||'CHM';if(S.company!==co){S.company=co;try{localStorage.setItem('chm-sites-company',co);}catch(e){}}
+  closeModal();S.view='sites';S.siteId=site.id;S.tab='basic';S.open=true;S.zone='전체';S.q='';S.client='전체';S.short=false;S.mine=false;render();
+  var m=document.getElementById('main');if(m)m.scrollTop=0;
+  toast('📍 현재 위치 '+site.name+' ('+Math.round(d)+'m) — 사업장현황을 열었습니다',5000);
+}
+async function onReturn(){if(!S.me)return;if(!(await ensureAal()))return;geoAuto();
   if(S.view==='dash'&&Date.now()-(S.lastLoad||0)>300e3){S.lastLoad=Date.now();loadAll().then(function(){if(S.me){S.keepScroll=true;render();}}).catch(function(){});}}
 window.addEventListener('focus',onReturn);
 document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')onReturn();});
