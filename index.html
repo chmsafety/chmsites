@@ -247,6 +247,7 @@ body{padding:0;overflow:hidden}
 .zonebox table input{width:70px;border:1px solid var(--line);border-radius:6px;padding:4px 6px;text-align:right;font-family:var(--mono);background:var(--surface)}
 .zonebox .zh{display:flex;gap:8px;align-items:center}
 .zonebox .zh input{flex:1;border:1px solid var(--line);border-radius:6px;padding:4px 8px;background:var(--surface)}
+.flrs table input{width:100%;min-width:60px;border:1px solid var(--line);border-radius:6px;padding:5px 6px;background:var(--surface);font-size:13px}.flrs table input.n{text-align:right;font-family:var(--mono);min-width:72px}.flrs table input.fl{min-width:54px;font-weight:600}.flrs td{padding:3px 3px}.flrs .btn.sm{padding:4px 8px}
 .btn.danger{color:var(--bad);border-color:var(--bad-soft)}
 .btn.danger.arm{background:var(--bad);color:#fff;border-color:var(--bad)}
 .btn[disabled]{opacity:.55;cursor:default}
@@ -290,7 +291,7 @@ body{padding:0;overflow:hidden}
 var SB_URL='https://dbymktwxokbvfshlztrg.supabase.co';
 var SB_KEY='sb_publishable_RHDgmlGV-m946etnPHfXaw_vy2u8uCp';
 var DOMAIN='sites.chm.local';
-var VERSION='7.5단계 · 2026-11-03';
+var VERSION='7.6단계 · 2026-11-03';
 var GEO_RADIUS=250; // 현재 위치에서 이 거리(m) 안에 있는 사업장을 '도착'으로 봄
 var IDLE_MIN=30;
 var CATS=['관리','사무지원','시설','보안','CS','미화'];
@@ -506,8 +507,9 @@ async function loadDetail(siteId,force){
     q(sb.from('site_equipment').select('*').eq('site_id',siteId).order('id')),
     q(sb.from('site_visits').select('*').eq('site_id',siteId).order('visit_date',{ascending:false}).order('id',{ascending:false})),
     q(sb.from('site_photos').select('*').eq('site_id',siteId).order('id')),
-    q(sb.from('site_people').select('*').eq('site_id',siteId).order('sort').order('id'))]);
-  S.detail={contacts:r[0],notes:r[1],equip:r[2],visits:r[3],photos:r[4],people:r[5]};S.detailFor=siteId;
+    q(sb.from('site_people').select('*').eq('site_id',siteId).order('sort').order('id')),
+    q(sb.from('site_floors').select('*').eq('site_id',siteId).order('sort').order('id'))]);
+  S.detail={contacts:r[0],notes:r[1],equip:r[2],visits:r[3],photos:r[4],people:r[5],floors:r[6]};S.detailFor=siteId;
   await signPhotos(r[4]);
 }
 async function refreshSite(siteId){
@@ -619,7 +621,7 @@ function tabBasic(s,ed){
   var vs=S.detail.visits;var fl=[s.floors_above?'지상 '+s.floors_above+'층':'',s.floors_below?'지하 '+s.floors_below+'층':''].filter(Boolean).join(' / ');
   return '<section class="card"><h3>기본현황'+(ed?'<button type="button" class="btn sm r" data-act="basic-edit">수정</button>':'')+'</h3><dl class="kv"><dt>주소</dt><dd>'+(s.addr?esc(s.addr):'<span class="muted">미입력</span>')+'</dd><dt>연면적</dt><dd>'+(s.area_m2?'<span class="num">'+fmt(s.area_m2)+'</span> ㎡':'<span class="muted">미입력</span>')+'</dd><dt>층수</dt><dd>'+(fl?esc(fl):'<span class="muted">미입력</span>')+'</dd>'+
    '<dt>건축물대장</dt><dd>'+(s.building_id?'<span class="chip good">빌딩정보시스템 연결</span>'+(s.building_synced_at?' <span class="muted" style="font-size:12px">'+esc(dt(s.building_synced_at).slice(0,10))+' 조회</span>':''):'<span class="muted">'+(s.addr?'아직 불러오지 않음':'주소를 넣으면 자동으로 불러옵니다')+'</span>')+
-   (ed&&s.addr?' <button type="button" class="btn sm" data-act="bld-sync">'+(s.building_id?'다시 불러오기':'불러오기')+'</button>':'')+'</dd>'+(s.memo?'<dt>메모</dt><dd style="white-space:pre-wrap">'+esc(s.memo)+'</dd>':'')+'</dl><div style="font-size:12px;color:var(--ink-3);margin:12px 0 4px">현장 사진</div>'+photoStrip('site',s.id,ed,'현장 사진이 없습니다')+'</section>'+
+   (ed&&s.addr?' <button type="button" class="btn sm" data-act="bld-sync">'+(s.building_id?'다시 불러오기':'불러오기')+'</button>':'')+'</dd>'+(s.memo?'<dt>메모</dt><dd style="white-space:pre-wrap">'+esc(s.memo)+'</dd>':'')+'</dl><div style="font-size:12px;color:var(--ink-3);margin:12px 0 4px">현장 사진</div>'+photoStrip('site',s.id,ed,'현장 사진이 없습니다')+'</section>'+floorsCard(s,ed)+
    '<section class="card"><h3>방문기록 <span class="chip">'+vs.length+'건</span>'+(ed?'<button type="button" class="btn sm r" data-act="visit-add">'+I.plus+'방문기록</button>':'')+'</h3>'+
    (vs.length?'<div class="tl">'+vs.map(function(v){return '<div class="tli"><span class="d">'+esc(v.visit_date)+'</span><div class="c"><div class="meta"><span class="chip acc">'+esc(purposeText(v))+'</span>'+visitSrcChip(v)+visitWho(v)+(ed?'<button type="button" class="linkbtn" data-act="visit-edit" data-id="'+v.id+'">수정</button>':'')+'</div><span style="white-space:pre-wrap">'+esc(v.content)+'</span>'+photoStrip('visit',v.id,ed)+'</div></div>';}).join('')+'</div>':'<div class="empty">방문기록이 없습니다.</div>')+'</section>';
 }
@@ -728,7 +730,7 @@ function viewVisits(){
 
 /* ---------- 설정 ---------- */
 var ACTION_LABEL={insert:'추가',update:'수정',delete:'삭제',login:'로그인',view_phone:'연락처 열람',account_create:'계정 발급',account_reset_password:'비밀번호 재설정',account_activate:'계정 재사용',account_deactivate:'계정 중지',account_update:'계정 수정',account_reset_mfa:'OTP 초기화'};
-var TBL_LABEL={site_sites:'사업장',site_contacts:'고객사 담당자',site_visits:'방문기록',site_managers:'관리자',site_staffing:'인원',site_equipment:'설비',site_notes:'메모',site_photos:'사진',site_members:'계정',site_assign:'담당 지정',site_clients:'고객사',site_codes:'선택목록',site_people:'직원'};
+var TBL_LABEL={site_sites:'사업장',site_contacts:'고객사 담당자',site_visits:'방문기록',site_managers:'관리자',site_staffing:'인원',site_equipment:'설비',site_notes:'메모',site_photos:'사진',site_members:'계정',site_assign:'담당 지정',site_clients:'고객사',site_codes:'선택목록',site_people:'직원',site_floors:'층별현황'};
 function viewSet(){
   var tabs=[['acct','계정'],['assign','담당 사업장'],['sites','사업장·고객사'],['xlsx','인원 엑셀'],['codes','선택목록'],['link','이력 연동'],['audit','감사 로그']];
   var b='';
@@ -1110,6 +1112,67 @@ function equipForm(e,kind){
       var row={site_id:sid,kind:kind,type:v.type||null,qty:int(v.qty)||0,maker:v.maker||null,model:v.model||null,capacity:v.capacity||null,install_year:int(v.year),extra:extra,vendor:v.vendor||null,memo:v.memo||null};
       if(e)await q(sb.from('site_equipment').update(row).eq('id',e.id));else await q(sb.from('site_equipment').insert(row));await afterSave('설비를 저장했습니다',sid);}});
 }
+/* ---------- 층별현황 (직접 입력 / 사진으로 자동 입력 → 확인 후 저장) ---------- */
+function floorKey(f){var t=String(f||'').toUpperCase().replace(/\s/g,'');var m;
+  if(/^(PH|옥탑|RF|R)/.test(t))return 1000+(parseInt(t.replace(/\D/g,''),10)||0);
+  if((m=t.match(/^(B|지하)(\d+)/)))return -Number(m[2]);
+  if((m=t.match(/^(\d+)(F|층)?/)))return Number(m[1]);
+  if((m=t.match(/^(M|중)(\d*)/)))return (Number(m[2])||1)+0.5;
+  return 500;}
+function floorsCard(s,ed){var list=(S.detail.floors||[]).slice().sort(function(a,b){return a.sort-b.sort||a.id-b.id;});
+  var tot=list.reduce(function(a,f){return a+(Number(f.area_m2)||0);},0);
+  var rows=list.map(function(f){return '<tr><td><b>'+esc(f.floor)+'</b></td><td>'+esc(f.usage||'')+'</td><td style="white-space:normal">'+esc(f.tenant||'')+'</td><td class="n num">'+(f.area_m2?fmt(f.area_m2):'')+'</td><td class="muted" style="white-space:normal">'+esc(f.memo||'')+'</td></tr>';}).reverse().join('');
+  return '<section class="card"><h3>층별현황 <span class="chip">'+list.length+'개 층</span>'+(tot?'<span class="muted" style="font-weight:400;font-size:12px">합계 '+fmt(Math.round(tot))+'㎡</span>':'')+
+    (ed?'<span class="r actions"><label class="btn sm" style="cursor:pointer" title="층별 안내판·안내표·도면을 찍으면 자동으로 읽어 넣습니다">📷 사진으로 입력<input type="file" accept="image/*" multiple hidden data-fphoto="1"></label><button type="button" class="btn sm" data-act="floors-edit">'+(list.length?'수정':I.plus+'직접 입력')+'</button></span>':'')+'</h3>'+
+    (list.length?'<div class="tbl-wrap"><table><thead><tr><th>층</th><th>용도</th><th>입주사·부서</th><th class="n">면적(㎡)</th><th>비고</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<div class="empty">층별현황이 없습니다.'+(ed?' 「직접 입력」하거나 층별 안내판을 「사진으로 입력」하세요.':'')+'</div>')+'</section>';}
+function floorsForm(rows,note){
+  var sid=S.siteId,site=byId(S.sites,sid);closeModal();
+  var m=document.createElement('div');m.className='modal';m.id='modal';
+  var row=function(f){f=f||{};return '<tr><td><input class="fl" data-f="floor" value="'+esc(f.floor||'')+'" placeholder="3F"></td><td><input data-f="usage" value="'+esc(f.usage||'')+'" placeholder="용도"></td><td><input data-f="tenant" value="'+esc(f.tenant||'')+'" placeholder="입주사·부서"></td><td><input class="n" data-f="area" inputmode="decimal" value="'+(f.area_m2?esc(f.area_m2):'')+'" placeholder="㎡"></td><td><input data-f="memo" value="'+esc(f.memo||'')+'" placeholder="비고"></td><td><button type="button" class="btn sm danger" data-fdel aria-label="삭제">×</button></td></tr>';};
+  rows=(rows||[]).slice().sort(function(a,b){return floorKey(b.floor)-floorKey(a.floor);});
+  m.innerHTML='<form class="mbox" id="mform" novalidate style="max-width:860px"><h2>층별현황 '+(note?'— 사진 판독 결과 확인':'입력')+'</h2><div class="lnote"><span>'+(note?esc(note)+' 틀린 곳을 고친 뒤 저장하세요. ':'')+'위층부터 아래층 순서로 적어도 되고, 저장할 때 층 표기(B2·1F·PH)로 자동 정렬됩니다. 저장하면 이 사업장의 층별현황 전체가 아래 표로 바뀝니다.</span></div>'+
+    '<div class="flrs tbl-wrap"><table><thead><tr><th>층</th><th>용도</th><th>입주사·부서</th><th class="n">면적(㎡)</th><th>비고</th><th></th></tr></thead><tbody id="frows">'+rows.map(row).join('')+'</tbody></table></div>'+
+    '<div class="actions" style="margin-top:8px"><button type="button" class="btn sm" id="fadd">'+I.plus+'층 추가</button><button type="button" class="btn sm" id="fgen" title="기본현황의 지상·지하 층수대로 빈 행을 만듭니다">층수대로 행 만들기</button></div><div class="err" id="merr"></div><div class="act"><button type="button" class="btn" data-close>취소</button><button class="btn pri" id="msave">저장</button></div></form>';
+  app.appendChild(m);
+  var tb=function(){return document.getElementById('frows');};
+  var addRow=function(f){var d=document.createElement('tbody');d.innerHTML=row(f);var tr=d.firstChild;tb().appendChild(tr);return tr;};
+  if(!rows.length)addRow();
+  m.addEventListener('click',function(e){if(e.target===m||e.target.hasAttribute('data-close'))closeModal();
+    if(e.target.hasAttribute('data-fdel')){e.target.closest('tr').remove();if(!tb().children.length)addRow();}
+    if(e.target.id==='fadd'){var tr=addRow();tr.querySelector('input').focus();}
+    if(e.target.id==='fgen'){var have={};tb().querySelectorAll('tr').forEach(function(tr){var v=tr.querySelector('[data-f="floor"]').value.trim();if(v)have[v.toUpperCase()]=1;else tr.remove();});
+      var fa=site&&site.floors_above||0,fb=site&&site.floors_below||0,n=0;if(!fa&&!fb){toast('기본현황에 지상·지하 층수를 먼저 입력하세요');if(!tb().children.length)addRow();return;}
+      for(var i=fa;i>=1;i--){if(!have[i+'F']){addRow({floor:i+'F'});n++;}}for(var j=1;j<=fb;j++){if(!have['B'+j]){addRow({floor:'B'+j});n++;}}
+      toast(n?n+'개 층 행을 추가했습니다':'이미 모든 층이 있습니다');}});
+  document.getElementById('mform').addEventListener('submit',async function(e){e.preventDefault();var er=document.getElementById('merr');
+    var out=[],seen={},dup=null;
+    tb().querySelectorAll('tr').forEach(function(tr){var g=function(k){return tr.querySelector('[data-f="'+k+'"]').value.trim();};var fl=g('floor');if(!fl)return;
+      var k=fl.toUpperCase();if(seen[k])dup=fl;seen[k]=1;out.push({site_id:sid,floor:fl,usage:g('usage')||null,tenant:g('tenant')||null,area_m2:num(g('area')),memo:g('memo')||null});});
+    if(dup){er.textContent='층 「'+dup+'」이(가) 두 번 있습니다.';return;}
+    if(!out.length&&!confirm('입력한 층이 없습니다. 이 사업장의 층별현황을 모두 지울까요?'))return;
+    out.sort(function(a,b){return floorKey(a.floor)-floorKey(b.floor);}).forEach(function(r,i){r.sort=i;});
+    var bt=document.getElementById('msave');bt.disabled=true;bt.textContent='저장 중…';
+    try{await q(sb.from('site_floors').delete().eq('site_id',sid));if(out.length)await q(sb.from('site_floors').insert(out));closeModal();await afterSave('층별현황 '+out.length+'개 층을 저장했습니다',sid);}
+    catch(x){er.textContent=errMsg(x);bt.disabled=false;bt.textContent='저장';}});
+  var f1=m.querySelector('#frows input');if(f1)f1.focus();
+}
+function blobB64(b){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(){res(String(r.result).split(',')[1]);};r.onerror=function(){rej(new Error('사진을 읽지 못했습니다'));};r.readAsDataURL(b);});}
+async function floorsPhoto(files){
+  var sid=S.siteId;files=[].slice.call(files,0,4);if(!files.length)return;
+  toast('사진을 읽는 중… (10~30초)',30000);
+  try{var imgs=[];for(var i=0;i<files.length;i++){var b=await shrink(files[i]);imgs.push({data:await blobB64(b),media_type:'image/jpeg'});}
+    var r=await sb.functions.invoke('site-floors',{body:{site_id:sid,images:imgs}});
+    if(r.error){var msg=r.error.message;try{var j=await r.error.context.json();if(j&&j.error)msg=j.error;}catch(e){}throw new Error(msg);}
+    var d=r.data||{},got=d.floors||[];
+    if(!got.length){toast(d.note||'사진에서 층별 정보를 찾지 못했습니다. 더 선명하게 찍어 다시 시도하세요',7000);return;}
+    var cur=(S.detail.floors||[]).slice(),merged=[],seen={};
+    got.forEach(function(f){seen[f.floor.toUpperCase()]=1;var o=cur.filter(function(c){return c.floor.toUpperCase()===f.floor.toUpperCase();})[0];
+      merged.push({floor:f.floor,usage:f.usage||(o&&o.usage)||'',tenant:f.tenant||(o&&o.tenant)||'',area_m2:f.area_m2||(o&&o.area_m2)||null,memo:f.memo||(o&&o.memo)||''});});
+    cur.forEach(function(c){if(!seen[c.floor.toUpperCase()])merged.push(c);});
+    toast('사진에서 '+got.length+'개 층을 읽었습니다. 확인 후 저장하세요',5000);
+    floorsForm(merged,'사진에서 '+got.length+'개 층을 읽었습니다'+(cur.length?' (기존 '+cur.length+'개 층과 합침)':'')+'.');
+  }catch(x){toast('사진 판독 실패: '+errMsg(x),8000);}
+}
 function staffForm(){
   var sid=S.siteId,rows=latestRows(sid);var zones=zonesOf(sid);if(!zones.length)zones=[''];
   closeModal();var m=document.createElement('div');m.className='modal';m.id='modal';
@@ -1273,7 +1336,8 @@ function photoView(id){
     saveLabel:'닫기',onSave:function(){},deleteLabel:'사진 삭제',onDelete:ed?async function(){await removePhoto(p);await loadDetail(S.siteId,true);openDetail(S.siteId,true);toast('사진을 삭제했습니다');}:null});
   var c=m.querySelector('[data-close]');if(c)c.remove();
 }
-app.addEventListener('change',function(e){var t=e.target;if(!t.dataset||!t.dataset.ptype||!t.files||!t.files.length)return;
+app.addEventListener('change',function(e){var t=e.target;if(t.dataset&&t.dataset.fphoto&&t.files&&t.files.length){var fs=[].slice.call(t.files);t.value='';floorsPhoto(fs);return;}
+  if(!t.dataset||!t.dataset.ptype||!t.files||!t.files.length)return;
   var files=[].slice.call(t.files);t.value='';uploadPhotos(t.dataset.ptype,Number(t.dataset.pid),files);});
 /* 서명 링크 만료 전에 다시 받기 (10분 링크, 8분마다 갱신) */
 setInterval(function(){if(S.me&&S.detail&&S.view==='sites'&&Date.now()-S.purlAt>480e3){signPhotos(S.detail.photos).then(function(){openDetail(S.siteId,true);});}},60e3);
@@ -1345,6 +1409,7 @@ app.addEventListener('click',async function(e){
     case 'equip-add':equipForm(null,el.dataset.kind);return;
     case 'equip-edit':equipForm(byId(S.detail.equip,id));return;
     case 'staff-edit':staffForm();return;
+    case 'floors-edit':floorsForm(S.detail.floors||[]);return;
     case 'acct-add':acctAdd();return;
     case 'acct-menu':acctMenu(el.dataset.id);return;
     case 'site-add':siteForm(null);return;
