@@ -199,6 +199,41 @@ td.n,th.n{text-align:right}
 .vbox .rec{background:var(--bad);border-color:var(--bad);color:#fff}
 .vbox .rec .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#fff;margin-right:6px;animation:vblink 1s infinite}
 @keyframes vblink{50%{opacity:.2}}
+/* 도착 브리핑 */
+.brief{max-width:620px;margin:0 auto;padding:16px 18px 60px}
+.brief .bh{padding:4px 0 12px;border-bottom:2px solid var(--accent)}
+.brief .bh .when{font-size:12.5px;color:var(--ink-3);margin:0 0 4px}
+.brief .bh h1{font-size:24px;line-height:1.2;margin:0 0 6px}
+.brief .bh .sub{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px;color:var(--ink-2)}
+.brief .quick{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.brief .quick .btn{display:flex;flex-direction:column;align-items:center;padding:9px 4px;font-size:13px;line-height:1.25;text-decoration:none}
+.brief .quick .btn small{font-weight:400;color:var(--ink-3);font-size:11px;margin-top:2px}
+.brief section{margin-top:20px}
+.brief section h2{font-size:15px;margin:0 0 8px;display:flex;align-items:baseline;gap:8px}
+.brief section h2 .n{font-size:12.5px;color:var(--ink-3);font-weight:500}
+.brief section h2 .upd{margin-left:auto;font-size:12px;color:var(--ink-3);font-weight:400}
+.brief .bx{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.brief .row{display:flex;gap:10px;padding:10px 14px;border-top:1px solid var(--line);align-items:flex-start}
+.brief .row:first-child{border-top:0}
+.brief .row .l{flex:1;min-width:0}
+.brief .row .nm{font-weight:600}
+.brief .row .mt{font-size:13px;color:var(--ink-2)}
+.brief .row .dt{flex:none;width:52px;font-size:12.5px;color:var(--ink-3);font-family:var(--mono);padding-top:2px}
+.brief .row .pct{flex:none;font-weight:700;font-size:17px;font-family:var(--mono)}
+.brief .kv{display:grid;grid-template-columns:repeat(4,1fr);text-align:center}
+.brief .kv div{padding:10px 4px;border-left:1px solid var(--line)}
+.brief .kv div:first-child{border-left:0}
+.brief .kv b{display:block;font-size:20px;font-family:var(--mono);font-weight:600}
+.brief .kv span{font-size:11.5px;color:var(--ink-3)}
+.brief .pl{padding:9px 14px;border-top:1px solid var(--line);font-size:13px;color:var(--ink-2);display:grid;gap:3px}
+.brief .pl b{color:var(--ink)}
+.brief .cb{height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:6px}
+.brief .cb i{display:block;height:100%;background:var(--accent)}
+.brief .nt{display:flex;gap:8px;padding:10px 12px;background:var(--warn-soft);border-radius:10px;margin-top:8px;font-size:13px}
+.brief .empty{padding:14px}
+.brief .tel{flex:none;padding:5px 11px;border-radius:8px;background:var(--accent-soft);color:var(--accent);font-weight:600;font-size:12.5px;text-decoration:none;white-space:nowrap}
+.brief .more{text-align:center;margin-top:8px;font-size:13px}
+.brief .old{color:var(--bad);font-size:12px}
 
 /* 모달·토스트 */
 .modal{position:absolute;inset:0;background:rgba(10,20,18,.45);display:grid;place-items:center;z-index:20;padding:16px}
@@ -316,7 +351,7 @@ body{padding:0;overflow:hidden}
 var SB_URL='https://dbymktwxokbvfshlztrg.supabase.co';
 var SB_KEY='sb_publishable_RHDgmlGV-m946etnPHfXaw_vy2u8uCp';
 var DOMAIN='sites.chm.local';
-var VERSION='8단계 · 2026-11-04';
+var VERSION='9단계 · 2026-11-04';
 var GEO_RADIUS=250; // 현재 위치에서 이 거리(m) 안에 있는 사업장을 '도착'으로 봄
 var IDLE_MIN=30;
 var CATS=['관리','사무지원','시설','보안','CS','미화'];
@@ -330,7 +365,7 @@ var sb=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,aut
 /* ---------- 상태 ---------- */
 var S={me:null,clients:[],sites:[],staff:[],codes:[],members:[],assign:[],visits:[],managers:[],
   view:'dash',siteId:null,tab:'client',open:false,q:'',client:'전체',short:false,mine:false,zone:'전체',vp:'전체',stab:'acct',su:null,showArchived:false,
-  detail:null,detailFor:null,audit:null,bld:{},geo:{at:0,site:null}};
+  detail:null,detailFor:null,audit:null,bld:{},geo:{at:0,site:null},brief:null,arr:null};
 var COMPANIES=['CHM','CHMS'];
 try{var sc=localStorage.getItem('chm-sites-company');if(COMPANIES.indexOf(sc)>=0)S.company=sc;}catch(e){}
 if(!S.company)S.company='CHM';
@@ -410,7 +445,7 @@ async function afterSignIn(){
     var rec=null;try{rec=sessionStorage.getItem('chm-sites-rec');}catch(x){}
     if(!rec){sb.rpc('site_record_login').then(function(){});try{sessionStorage.setItem('chm-sites-rec','1');}catch(x){}}
     S.me=me; // 비밀번호 변경·OTP까지 모두 통과한 뒤에만 로그인 상태로 인정
-    await loadAll();startIdle();render();geoAuto();
+    await loadAll();startIdle();render();if(!(await briefFromHash()))geoAuto();
   }catch(e){showLogin(errMsg(e));}
 }
 
@@ -555,7 +590,7 @@ function render(){
   var nav=[['dash','대시보드'],['sites','사업장'],['visits','방문기록']];
   if(isAdmin())nav.push(['set','설정']);
   var who='<b>'+esc(S.me.name)+' ('+esc(S.me.login_id)+')</b><span>'+(isAdmin()?'관리자 · 전체 입력·수정':'담당 사업장 '+S.me.sites.length+'곳 · 나머지는 조회만')+'</span><div class="actions"><button type="button" data-act="pw">비밀번호 변경</button><button type="button" data-act="logout">로그아웃</button>'+installHtml()+'</div>';
-  var main=S.view==='dash'?viewDash():S.view==='sites'?viewSites():S.view==='visits'?viewVisits():S.view==='set'?viewSet():viewDash();
+  var main=S.view==='dash'?viewDash():S.view==='sites'?viewSites():S.view==='visits'?viewVisits():S.view==='set'?viewSet():S.view==='brief'?viewBrief():viewDash();
   var sy=S.view==='sites'?null:(document.getElementById('main')||{}).scrollTop;
   app.innerHTML='<div class="shell"><nav class="nav" aria-label="메뉴"><div class="brand"><span class="mk">CHM</span><div><b>사업장 관리</b><small>'+esc(S.company)+' · 운영 '+activeSites().length+'곳</small></div></div>'+
     nav.map(function(n){return '<button type="button" class="it" data-nav="'+n[0]+'"'+(S.view===n[0]?' aria-current="page"':'')+'>'+I[n[0]==='set'?'set':n[0]]+'<span>'+n[1]+'</span></button>';}).join('')+
@@ -621,7 +656,7 @@ function viewDetail(){
   var tabs=[['client','고객사'],['basic','기본현황'],['staff','인력현황'],['equip','설비현황'],['const','공사현황'],['hist','기타 이력']];
   var body=!ready?'<div class="loading" style="height:120px">불러오는 중…</div>':S.tab==='client'?tabClient(s,ed):S.tab==='basic'?tabBasic(s,ed):S.tab==='staff'?tabStaff(s,ed):S.tab==='equip'?tabEquip(s,ed):S.tab==='const'?tabConst(s):tabHist(s);
   var vcount=ready?S.detail.visits.length:S.visits.filter(function(v){return v.site_id===s.id;}).length;
-  return '<header class="dh"><button type="button" class="back" data-act="back">‹ 사업장 목록</button><div class="t"><h2>'+esc(s.name)+'</h2><span class="chip co-chip co-'+esc((s.company||'CHM').toLowerCase())+'">'+esc(s.company||'CHM')+'</span><span class="chip acc">'+esc(clientName(s.client_id))+'</span>'+(!ed?'<span class="chip warn">'+I.lock+' 조회 전용</span>':'')+'</div>'+
+  return '<header class="dh"><button type="button" class="back" data-act="back">‹ 사업장 목록</button><div class="t"><h2>'+esc(s.name)+'</h2><button type="button" class="btn sm" data-act="brief-open" data-id="'+s.id+'" title="한 장짜리 현황">📋 브리핑</button><span class="chip co-chip co-'+esc((s.company||'CHM').toLowerCase())+'">'+esc(s.company||'CHM')+'</span><span class="chip acc">'+esc(clientName(s.client_id))+'</span>'+(!ed?'<span class="chip warn">'+I.lock+' 조회 전용</span>':'')+'</div>'+
    '<div class="sum"><span>현원/정원<b>'+t[1]+'/'+t[0]+'</b></span><span>결원<b style="color:'+(g>0?'var(--bad)':'inherit')+'">'+g+'</b></span><span>관리자<b>'+S.managers.filter(function(m){return m.site_id===s.id&&m.active;}).length+'</b></span><span>방문기록<b>'+vcount+'</b></span></div>'+
    '<div class="tabs" role="tablist">'+tabs.map(function(x){return '<button type="button" role="tab" data-tab="'+x[0]+'" aria-selected="'+(S.tab===x[0])+'">'+x[1]+'</button>';}).join('')+'</div></header>'+
    '<div class="dbody">'+(!ed?'<div class="readonly">'+I.lock+'담당 사업장이 아니어서 볼 수만 있습니다. 수정이 필요하면 관리자에게 담당 지정을 요청하세요.</div>':'')+body+'</div>'+
@@ -757,7 +792,7 @@ function viewVisits(){
 var ACTION_LABEL={insert:'추가',update:'수정',delete:'삭제',login:'로그인',view_phone:'연락처 열람',account_create:'계정 발급',account_reset_password:'비밀번호 재설정',account_activate:'계정 재사용',account_deactivate:'계정 중지',account_update:'계정 수정',account_reset_mfa:'OTP 초기화'};
 var TBL_LABEL={site_sites:'사업장',site_contacts:'고객사 담당자',site_visits:'방문기록',site_managers:'관리자',site_staffing:'인원',site_equipment:'설비',site_notes:'메모',site_photos:'사진',site_members:'계정',site_assign:'담당 지정',site_clients:'고객사',site_codes:'선택목록',site_people:'직원',site_floors:'층별현황',site_const_reports:'공사 주간자료'};
 function viewSet(){
-  var tabs=[['acct','계정'],['assign','담당 사업장'],['sites','사업장·고객사'],['xlsx','인원 엑셀'],['const','공사현황'],['codes','선택목록'],['link','이력 연동'],['audit','감사 로그']];
+  var tabs=[['acct','계정'],['assign','담당 사업장'],['sites','사업장·고객사'],['xlsx','인원 엑셀'],['const','공사현황'],['codes','선택목록'],['link','이력 연동'],['arrive','도착 알림'],['audit','감사 로그']];
   var b='';
   if(S.stab==='acct'){
     if(!S.locks){S.locks={};sb.rpc('site_locked_accounts').then(function(r){(r.data||[]).forEach(function(x){S.locks[x.login_id]=x;});if(S.view==='set'&&S.stab==='acct'){S.keepScroll=true;render();}});}
@@ -780,6 +815,8 @@ function viewSet(){
     b=viewImp();
   } else if(S.stab==='const'){
     b=viewCimp();
+} else if(S.stab==='arrive'){
+  b=setArrive();
 } else if(S.stab==='link'){
     b=viewLink();
   } else if(S.stab==='codes'){
@@ -1310,7 +1347,7 @@ function clientForm(c){
 }
 
 /* ---------- 내 계정 (폰) ---------- */
-function meMenu(){var m=openForm({title:S.me.name+' ('+S.me.login_id+')',fields:[{id:'x',type:'info',html:'<span>'+(isAdmin()?'관리자 · 전체 입력·수정':'담당 사업장 '+S.me.sites.length+'곳')+'</span><div class="actions" style="margin-top:8px"><button type="button" class="btn" data-act="pw">비밀번호 변경</button><button type="button" class="btn" data-act="logout">로그아웃</button><button type="button" class="btn" data-act="geo-toggle">📍 위치 자동 열기: '+(geoOn()?'켜짐':'꺼짐')+'</button>'+installHtml().replace('<button type="button"','<button type="button" class="btn"')+'</div><span class="muted">'+VERSION+'</span>'}],saveLabel:'닫기',onSave:function(){}});m.querySelector('[data-close]').remove();}
+function meMenu(){var m=openForm({title:S.me.name+' ('+S.me.login_id+')',fields:[{id:'x',type:'info',html:'<span>'+(isAdmin()?'관리자 · 전체 입력·수정':'담당 사업장 '+S.me.sites.length+'곳')+'</span><div class="actions" style="margin-top:8px"><button type="button" class="btn" data-act="pw">비밀번호 변경</button><button type="button" class="btn" data-act="logout">로그아웃</button><button type="button" class="btn" data-actarriv"eseole">도착 알림 설정)+'</button>'+installHtml().replace('<button type="button"','<button type="button" class="btn"')+'</div><span class="muted">'+VERSION+'</span>'}],saveLabel:'닫기',onSave:function(){}});m.querySelector('[data-close]').remove();}
 
 
 /* ---------- 사진 ---------- */
@@ -1629,7 +1666,13 @@ app.addEventListener('click',async function(e){
     case 'pw':closeModal();showChangePw(false);return;
     case 'menu':meMenu();return;
     case 'geo':geoCheck(true,el);return;
-    case 'geo-toggle':try{localStorage.setItem('chm-sites-geo',geoOn()?'off':'on');}catch(x){}closeModal();toast(geoOn()?'사업장에 도착하면 사업장현황을 자동으로 엽니다':'위치 자동 열기를 껐습니다 (📍 버튼으로는 계속 찾을 수 있습니다)');if(geoOn())geoCheck(false);return;
+    casarrive-set':arriveForm();return;
+    case 'brief-open':S.brief={site:Number(el.dataset.id),at:null,dist:null};S.view='brief';render();var mb=document.getElementById('main');if(mb)mb.scrollTop=0;return;
+    case 'brief-back':S.view='sites';S.siteId=S.brief&&S.brief.site;S.open=true;render();return;
+    case 'brief-detail':S.view='sites';S.siteId=Number(el.dataset.id);S.tab=el.dataset.tab||'basic';S.open=true;render();return;
+    case 'brief-visit':S.view='sites';S.siteId=Number(el.dataset.id);S.open=true;render();setTimeout(function(){visitForm(null,false);},50);return;
+    case 'arr-reload':S.arr=null;render();return;
+    case 'e 'geo-toggle':try{localStorage.setItem('chm-sites-geo',geoOn()?'off':'on');}catch(x){}closeModal();toast(geoOn()?'사업장에 도착하면 사업장현황을 자동으로 엽니다':'위치 자동 열기를 껐습니다 (📍 버튼으로는 계속 찾을 수 있습니다)');if(geoOn())geoCheck(false);return;
     case 'reload':el.disabled=true;try{await loadAll();render();toast('새로 불러왔습니다');}catch(x){toast(errMsg(x));el.disabled=false;}return;
     case 'back':S.open=false;document.querySelector('.sites').setAttribute('data-open','0');return;
     case 'contact-add':contactForm(null);return;
@@ -1726,7 +1769,7 @@ function geoCheck(manual,btn){
     var lim=Math.max(GEO_RADIUS,Math.min(c.accuracy||0,600)); // 위치 오차가 크면 그만큼만 넓게 봄
     if(n.d>lim){if(manual)toast('가까운 사업장이 없습니다 · 가장 가까운 곳: '+n.s.name+' ('+(n.d<1000?Math.round(n.d)+'m':(n.d/1000).toFixed(1)+'km')+')',5000);return;}
     if(!manual&&S.geo.site===n.s.id)return; // 같은 사업장에 머무는 동안은 한 번만
-    S.geo.site=n.s.id;geoOpen(n.s,n.d);
+    S.geo.site=n.s.id;geoOpen(,c.accuracyn.s,n.d);
   },function(err){done();
     if(err.code===1){try{sessionStorage.setItem('chm-sites-geo-denied','1');}catch(e){}if(manual)toast('위치 권한이 꺼져 있습니다. 브라우저·앱 설정에서 이 사이트의 위치 사용을 허용해 주세요',6000);}
     else if(manual)toast('현재 위치를 확인하지 못했습니다'+(err.code===3?' (시간 초과)':'')+'. 잠시 후 다시 시도하세요');
@@ -1736,7 +1779,122 @@ function geoOpen(site,d){
   var co=site.company||'CHM';if(S.company!==co){S.company=co;try{localStorage.setItem('chm-sites-company',co);}catch(e){}}
   closeModal();S.view='sites';S.siteId=site.id;S.tab='basic';S.open=true;S.zone='전체';S.q='';S.client='전체';S.short=false;S.mine=false;render();
   var m=document.getElementById('main');if(m)m.scrollTop=0;
-  toast('📍 현재 위치 '+site.name+' ('+Math.round(d)+'m) — 사업장현황을 열었습니다',5000);
+  toast('📍 현재 위치 '+site.name+' ('+Math.round(d)+'m) — 사업장현황을 열었습니;
+  arriveNotify(site,d,acc);
+}
+/* 도착을 서버에 알리고(이력), 설정에 따라 본인 휴대폰으로 현황 링크 문자를 보낸다 */
+async function arriveNotify(site,d,acc){
+  try{var r=await sb.functions.invoke('site-arrive',{body:{action:'arrive',site_id:site.id,dist:Math.round(d),accuracy:Math.round(acc||0)}});
+    if(r.error)return;var o=r.data||{};
+    if(o.sent){setTimeout(function(){toast('📨 현황 링크 문자를 보냈습니다 ('+o.phone+')',4000);},5200);
+      if(o.draft)setTimeout(function(){if(S.view==='sites'&&S.siteId===site.id&&!document.getElementById('modal')&&canEdit(site.id))visitForm(null,false);},1200);}
+    else if(o.reason==='nophone'&&!sessionStorage.getItem('chm-arr-np')){try{sessionStorage.setItem('chm-arr-np','1');}catch(e){}setTimeout(function(){toast('도착 문자를 받으려면 내 계정 › 도착 알림 설정에 휴대폰 번호를 넣어 주세요',6000);},5200);}
+  }catch(e){}
+}
+/* 문자 링크(#b/토큰)로 들어온 경우 → 본인 확인 뒤 브리핑 화면 */
+async function briefFromHash(){
+  var m=/^#b\/([A-Za-z0-9]{16,32})$/.exec(location.hash||'');if(!m)return false;
+  try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}
+  try{var r=await sb.functions.invoke('site-arrive',{body:{action:'brief',token:m[1]}});
+    if(r.error){var msg=r.error.message;try{var j=await r.error.context.json();if(j&&j.error)msg=j.error;}catch(e){}toast(msg,6000);return false;}
+    var o=r.data||{};var site=byId(S.sites,o.site_id);if(!site){toast('이 사업장을 볼 수 없습니다');return false;}
+    if(site.company&&S.company!==site.company){S.company=site.company;try{localStorage.setItem('chm-sites-company',site.company);}catch(e){}}
+    S.brief={site:site.id,at:o.at,dist:o.dist};S.view='brief';render();return true;
+  }catch(e){toast(errMsg(e));return false;}
+}
+window.addEventListener('hashchange',function(){if(S.me)briefFromHash();});
+
+/* ---------- 도착 브리핑 화면 (한 장짜리 현황) ---------- */
+function viewBrief(){
+  var b=S.brief,s=b&&byId(S.sites,b.site);if(!s)return '<div class="empty" style="margin:24px">사업장을 찾을 수 없습니다.</div>';
+  var ready=S.detailFor===s.id&&S.detail,cst=S.cst[s.id];
+  if(!ready)loadDetail(s.id).then(function(){if(S.view==='brief')render();}).catch(function(e){toast(errMsg(e));});
+  if(!cst)loadConst(s.id).then(function(){if(S.view==='brief')render();});
+  var when=b.at?dt(b.at).slice(5).replace('-','.')+(b.dist!=null?' · 도착 당시 '+b.dist+'m':''):today().slice(5).replace('-','.')+' 기준';
+  var mg=S.managers.filter(function(m){return m.site_id===s.id&&m.active;});var boss=mg.filter(function(m){return /소장/.test(m.role||'');})[0]||mg[0];
+  var t=totOf(s.id),gap=t[0]-t[1];
+  var back='<button type="button" class="back" data-act="brief-back" style="margin-bottom:8px">‹ 사업장</button>';
+  var head='<div class="bh"><p class="when">'+esc(when)+'</p><h1>'+esc(s.name)+'</h1><div class="sub"><span class="chip co-chip co-'+esc((s.company||'CHM').toLowerCase())+'">'+esc(s.company||'CHM')+'</span><span>'+esc(clientName(s.client_id))+'</span>'+(s.addr?'<span class="muted">'+esc(s.addr)+'</span>':'')+'</div>'+
+    '<div class="quick">'+(boss&&boss.phone?'<a class="btn" href="tel:'+esc(String(boss.phone).replace(/[^0-9+]/g,''))+'">📞 '+esc(boss.name)+'<small>'+esc(boss.role==='직접입력'?boss.role_etc||'':boss.role)+'</small></a>':'<span class="btn" style="opacity:.5">📞 관리자 없음<small>연락처 미등록</small></span>')+
+    '<button type="button" class="btn" data-act="brief-detail" data-id="'+s.id+'">🗂 사업장 상세<small>탭별로 보기</small></button>'+
+    (canEdit(s.id)?'<button type="button" class="btn" data-act="brief-visit" data-id="'+s.id+'">📝 방문기록<small>지금 작성</small></button>':'<span class="btn" style="opacity:.5">📝 방문기록<small>조회 전용</small></span>')+'</div></div>';
+  if(!ready)return '<div class="brief">'+back+head+'<div class="loading" style="height:120px">불러오는 중…</div></div>';
+  var D=S.detail,h='';
+  // 고객사 담당자
+  var cs=D.contacts.filter(function(c){return c.active!==false;});
+  h+='<section><h2>고객사 담당자 <span class="n">'+cs.length+'명</span></h2><div class="bx">'+(cs.length?cs.map(function(c){var tel=String(c.phone||'').replace(/[^0-9+]/g,'');
+    return '<div class="row"><div class="l"><div class="nm">'+esc(c.name)+(c.title?' '+esc(c.title):'')+'</div><div class="mt">'+esc([c.dept,c.email].filter(Boolean).join(' · '))+'</div></div>'+(tel?'<a class="tel" href="tel:'+esc(tel)+'">'+esc(c.phone)+'</a>':'')+'</div>';}).join(''):'<div class="empty">등록된 담당자가 없습니다</div>')+'</div></section>';
+  // 인원현황
+  var cat=staffOf(s.id),cells=CATS.map(function(c,k){return cat[k][0]||cat[k][1]?'<div><b>'+fmt(cat[k][1])+'</b><span>'+esc(c)+(cat[k][0]-cat[k][1]>0?' −'+fmt(cat[k][0]-cat[k][1]):'')+'</span></div>':'';}).join('');
+  var bd=baseDateOf(s.id);
+  h+='<section><h2>인원현황 <span class="n">정원 '+fmt(t[0])+' · 현원 '+fmt(t[1])+(gap>0?' · <span class="old">결원 '+fmt(gap)+'</span>':'')+'</span>'+(bd?'<span class="upd">'+esc(bd)+' 기준</span>':'')+'</h2><div class="bx"><div class="kv">'+(cells||'<div><b>—</b><span>인원 자료 없음</span></div>')+'</div>'+
+    (mg.length?'<div class="pl">'+mg.map(function(m){return '<div><b>'+esc(m.role==='직접입력'?m.role_etc||'':m.role)+'</b> '+esc(m.name)+(m.phone?' <span class="muted">'+esc(m.phone)+'</span>':'')+'</div>';}).join('')+'</div>':'')+'</div></section>';
+  // 최근 방문
+  var vs=D.visits.slice(0,3),lastV=D.visits[0],days=lastV?Math.round((new Date(today())-new Date(lastV.visit_date))/864e5):null;
+  h+='<section><h2>최근 방문 <span class="n">전체 '+D.visits.length+'건</span>'+(lastV?'<span class="upd">마지막 '+esc(lastV.visit_date)+'</span>':'')+'</h2><div class="bx">'+(vs.length?vs.map(function(v){
+    return '<div class="row"><div class="dt">'+esc(String(v.visit_date).slice(5).replace('-','.'))+'</div><div class="l"><div class="mt">'+esc([v.purpose==='기타'?v.purpose_etc||v.purpose:v.purpose,v.visitor,v.attendee].filter(Boolean).join(' · '))+'</div><div style="font-size:13.5px;margin-top:2px;white-space:pre-wrap">'+esc(String(v.content||'').slice(0,160))+(String(v.content||'').length>160?'…':'')+'</div></div></div>';}).join(''):'<div class="empty">방문기록이 없습니다</div>')+'</div>'+
+    (days!=null&&days>=30?'<div class="nt"><span>⏳</span><span>지난 방문 후 <b>'+days+'일</b> 지났습니다.</span></div>':'')+'</section>';
+  // 공사현황
+  var ch='';
+  if(!cst||cst.loading)ch='<div class="loading" style="height:60px">불러오는 중…</div>';
+  else if(cst.error)ch='<div class="empty">'+esc(cst.error)+'</div>';
+  else{var g={},order=[];cst.items.forEach(function(it){if(!g[it.pkey]){g[it.pkey]=[];order.push(it.pkey);}g[it.pkey].push(it);});
+    order.forEach(function(k){g[k].sort(function(a,b){return a.r.report_date<b.r.report_date?1:-1;});});
+    var ing=order.map(function(k){return g[k][0];}).filter(function(it){return !CST_DONE(it);});
+    var lastR=cst.items.reduce(function(m,it){return it.r.report_date>m?it.r.report_date:m;},'');
+    ch=(ing.length?ing.map(function(it){var p=it.progress==null?null:Math.max(0,Math.min(100,Number(it.progress)));
+      return '<div class="row"><div class="l"><div class="nm">'+esc(it.name)+(it.r.report_date<lastR?' <span class="old">('+esc(it.r.report_date)+' 보고)</span>':'')+'</div><div class="mt">'+esc([it.contractor,it.period].filter(Boolean).join(' · '))+'</div><div class="cb"><i style="width:'+(p||0)+'%"></i></div>'+(it.this_work?'<div class="mt" style="margin-top:4px">금주: '+esc(it.this_work)+'</div>':'')+(it.remark?'<div class="mt">특기: '+esc(it.remark)+'</div>':'')+'</div><div class="pct">'+(p==null?'—':p+'%')+'</div></div>';}).join(''):'<div class="empty">진행 중인 공사가 없습니다</div>');
+    ch='<div class="bx">'+ch+'</div>'+(cst.photos.length?'<div class="more"><button type="button" class="btn sm" data-act="brief-detail" data-id="'+s.id+'" data-tab="const">공사 사진 '+cst.photos.length+'장 보기</button></div>':'');}
+  h+='<section><h2>공사현황'+(cst&&cst.items?' <span class="n">진행 '+(function(){var seen={},n=0;cst.items.slice().sort(function(a,b){return a.r.report_date<b.r.report_date?1:-1;}).forEach(function(it){if(seen[it.pkey])return;seen[it.pkey]=1;if(!CST_DONE(it))n++;});return n;})()+'건</span>':'')+(cst&&cst.items&&cst.items.length?'<span class="upd">주간보고 '+esc(cst.items.reduce(function(m,it){return it.r.report_date>m?it.r.report_date:m;},''))+'</span>':'')+'</h2>'+ch+'</section>';
+  // 설비현황 요약
+  var yr=new Date().getFullYear(),kinds={},ko=[];D.equip.forEach(function(e){if(!kinds[e.kind]){kinds[e.kind]={q:0,old:null,n:0};ko.push(e.kind);}var k=kinds[e.kind];k.q+=e.qty||0;k.n++;if(e.install_year&&(!k.old||e.install_year<k.old))k.old=e.install_year;});
+  h+='<section><h2>설비현황 요약 <span class="n">'+D.equip.reduce(function(a,e){return a+(e.qty||0);},0)+'대</span></h2><div class="bx">'+(ko.length?ko.map(function(k){var x=kinds[k],age=x.old?yr-x.old:null;
+    return '<div class="row"><div class="l"><div class="nm">'+esc(k)+' <span class="muted" style="font-weight:400">'+x.q+'대</span></div><div class="mt">'+esc(D.equip.filter(function(e){return e.kind===k;}).map(function(e){return [e.type,e.maker,e.capacity].filter(Boolean).join(' ');}).filter(Boolean).slice(0,3).join(' / '))+'</div></div>'+(age!=null?'<div class="pct" style="font-size:13px;font-weight:500;'+(age>=15?'color:var(--bad)':'color:var(--ink-3)')+'">'+x.old+'년'+(age>=15?' 노후':'')+'</div>':'')+'</div>';}).join(''):'<div class="empty">등록된 설비가 없습니다</div>')+'</div></section>';
+  // 최근 특이사항
+  var ns=D.notes.slice(0,5),NT={site:'사업장',contact:'고객사',equipment:'설비',people:'직원',manager:'관리자',staffing:'인원'};
+  h+='<section><h2>최근 특이사항 <span class="n">메모 '+D.notes.length+'건</span></h2><div class="bx">'+(ns.length?ns.map(function(n){return '<div class="row"><div class="dt">'+esc(String(n.note_date||'').slice(5).replace('-','.'))+'</div><div class="l"><div class="mt">'+esc(NT[n.target_type]||n.target_type||'')+'</div><div style="font-size:13.5px;white-space:pre-wrap">'+esc(String(n.body||'').slice(0,200))+'</div></div></div>';}).join(''):'<div class="empty">특이사항 메모가 없습니다</div>')+'</div></section>';
+  return '<div class="brief">'+back+head+h+'<p class="muted" style="font-size:12px;margin-top:24px">사업장 관리 앱 · 문자 링크는 받은 뒤 24시간 동안 본인 계정으로만 열립니다.</p></div>';
+}
+
+/* ---------- 도착 알림 설정 (내 계정) ---------- */
+async function arriveForm(){
+  var pf=null;try{var u=await sb.auth.getUser();var uid=u.data&&u.data.user&&u.data.user.id;pf=await q(sb.from('site_arrive_prefs').select('*').eq('user_id',uid).maybeSingle());}catch(e){toast(errMsg(e));return;}
+  pf=pf||{};
+  var m=openForm({title:'📍 도착 알림 설정',fields:[
+    {id:'x',type:'info',html:'<span>사업장 250m 안에서 앱을 열거나 돌아오면 현황 화면을 자동으로 열고, 아래 설정대로 현황 링크 문자를 보냅니다. 폰이 닫혀 있을 때는 감지되지 않습니다.</span>'},
+    {id:'geo',type:'check',label:'사업장에 도착하면 현황 화면 자동 열기',value:geoOn()},
+    {id:'phone',label:'내 휴대폰 번호',value:pf.phone||'',inputmode:'tel',placeholder:'010-0000-0000'},
+    {id:'sms_on',type:'check',label:'도착하면 현황 링크 문자 받기',value:pf.sms_on!==false},
+    [{id:'gap',type:'select',label:'같은 사업장 재발송',value:pf.gap||'day',options:[{value:'day',label:'하루 1회'},{value:'visit',label:'방문마다 (2시간)'},{value:'week',label:'일주일 1회'}]},
+     {id:'hours',type:'select',label:'보내는 시간대',value:pf.hours||'08-19',options:[{value:'08-19',label:'08:00~19:00'},{value:'always',label:'항상'}]}],
+    {id:'draft',type:'check',label:'도착하면 방문기록 작성 창 바로 열기',value:!!pf.draft},
+    {id:'y',type:'info',html:'<div class="actions"><button type="button" class="btn sm" id="arr-test">시험 문자 보내기</button><span class="muted" id="arr-msg"></span></div>'}],
+    onSave:async function(v){
+      try{localStorage.setItem('chm-sites-geo',v.geo?'on':'off');}catch(e){}
+      var ph=String(v.phone||'').replace(/\D/g,'');if(ph&&!/^01\d{8,9}$/.test(ph))throw new Error('휴대폰 번호를 확인하세요 (예: 010-1234-5678)');
+      var u=await sb.auth.getUser();var uid=u.data.user.id;
+      await q(sb.from('site_arrive_prefs').upsert({user_id:uid,phone:ph?ph.replace(/^(\d{3})(\d{3,4})(\d{4})$/,'$1-$2-$3'):null,sms_on:!!v.sms_on,gap:v.gap,hours:v.hours,draft:!!v.draft,updated_at:new Date().toISOString()},{onConflict:'user_id'}));
+      toast(v.sms_on&&!ph?'저장했습니다 — 휴대폰 번호가 없어 문자는 가지 않습니다':'도착 알림 설정을 저장했습니다');if(v.geo)geoCheck(false);}});
+  var tb=m.querySelector('#arr-test'),tm=m.querySelector('#arr-msg');
+  tb.addEventListener('click',async function(){tb.disabled=true;tm.textContent='보내는 중…';
+    try{var ph=String(document.getElementById('f_phone').value||'').replace(/\D/g,'');if(!/^01\d{8,9}$/.test(ph))throw new Error('휴대폰 번호를 먼저 적고 저장하세요');
+      var u=await sb.auth.getUser();await q(sb.from('site_arrive_prefs').upsert({user_id:u.data.user.id,phone:ph.replace(/^(\d{3})(\d{3,4})(\d{4})$/,'$1-$2-$3'),updated_at:new Date().toISOString()},{onConflict:'user_id'}));
+      var r=await sb.functions.invoke('site-arrive',{body:{action:'test'}});
+      if(r.error){var msg=r.error.message;try{var j=await r.error.context.json();if(j&&j.error)msg=j.error;}catch(e){}throw new Error(msg);}
+      tm.textContent='보냈습니다 ('+(r.data&&r.data.phone)+')';}
+    catch(x){tm.textContent=errMsg(x);}tb.disabled=false;});
+}
+/* ---------- 설정 › 도착 알림 (관리자) ---------- */
+function setArrive(){
+  if(!S.arr){S.arr={loading:true};sb.functions.invoke('site-arrive',{body:{action:'status'}}).then(function(r){S.arr=r.error?{error:r.error.message}:(r.data||{});if(S.view==='set'&&S.stab==='arrive'){S.keepScroll=true;render();}});}
+  var a=S.arr;if(a.loading)return '<div class="loading" style="height:120px">불러오는 중…</div>';
+  if(a.error)return '<div class="empty">'+esc(a.error)+'</div>';
+  var nm=function(uid){var m=S.members.filter(function(x){return x.user_id===uid;})[0];return m?m.name:'?';};
+  var rows=(a.logs||[]).map(function(l){var st=byId(S.sites,l.site_id);
+    return '<tr><td class="num muted">'+dt(l.at)+'</td><td>'+esc(nm(l.user_id))+'</td><td>'+esc(st?st.name:'#'+l.site_id)+'</td><td class="n num">'+(l.dist!=null?l.dist+'m':'')+'</td><td>'+(l.sms?'<span class="chip good">발송</span>':'<span class="chip">—</span>')+'</td><td class="num">'+esc(l.phone||'')+'</td><td style="white-space:normal">'+esc(l.note||'')+'</td><td class="num muted">'+(l.opened_at?dt(l.opened_at):'')+'</td></tr>';}).join('');
+  return '<section class="card"><h3>도착 알림 <span class="chip">이달 문자 '+(a.month||0)+'건</span><span class="muted" style="font-weight:400;font-size:12px">'+(a.ready?'발신번호 '+esc(a.sender)+(a.balance!=null?' · 솔라피 잔액 '+fmt(a.balance)+'원':'')+(a.err?' · '+esc(a.err):''):'문자 발송 설정(솔라피) 없음')+'</span><button type="button" class="btn sm r" data-act="arr-reload">새로고침</button></h3>'+
+    '<p class="muted" style="font-size:12.5px">사업장 250m 안에서 앱을 열면 기록됩니다. 문자는 각자 내 계정 › 도착 알림 설정에서 켜고 끕니다. 링크는 24시간 동안 받은 본인만 열 수 있습니다.</p>'+
+    '<div class="tbl-wrap"><table><thead><tr><th>시각</th><th>이름</th><th>사업장</th><th class="n">거리</th><th>문자</th><th>번호</th><th>비고</th><th>링크 열람</th></tr></thead><tbody>'+(rows||'<tr><td colspan="8" class="muted">아직 도착 기록이 없습니다</td></tr>')+'</tbody></table></div></section>'다',5000);
 }
 async function onReturn(){if(!S.me)return;if(!(await ensureAal()))return;geoAuto();
   if(S.view==='dash'&&Date.now()-(S.lastLoad||0)>300e3){S.lastLoad=Date.now();loadAll().then(function(){if(S.me){S.keepScroll=true;render();}}).catch(function(){});}}
