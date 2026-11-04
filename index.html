@@ -1347,7 +1347,7 @@ function clientForm(c){
 }
 
 /* ---------- 내 계정 (폰) ---------- */
-function meMenu(){var m=openForm({title:S.me.name+' ('+S.me.login_id+')',fields:[{id:'x',type:'info',html:'<span>'+(isAdmin()?'관리자 · 전체 입력·수정':'담당 사업장 '+S.me.sites.length+'곳')+'</span><div class="actions" style="margin-top:8px"><button type="button" class="btn" data-act="pw">비밀번호 변경</button><button type="button" class="btn" data-act="logout">로그아웃</button><button type="button" class="btn" data-actarriv"eseole">도착 알림 설정)+'</button>'+installHtml().replace('<button type="button"','<button type="button" class="btn"')+'</div><span class="muted">'+VERSION+'</span>'}],saveLabel:'닫기',onSave:function(){}});m.querySelector('[data-close]').remove();}
+function meMenu(){var m=openForm({title:S.me.name+' ('+S.me.login_id+')',fields:[{id:'x',type:'info',html:'<span>'+(isAdmin()?'관리자 · 전체 입력·수정':'담당 사업장 '+S.me.sites.length+'곳')+'</span><div class="actions" style="margin-top:8px"><button type="button" class="btn" data-act="pw">비밀번호 변경</button><button type="button" class="btn" data-act="logout">로그아웃</button><button type="button" class="btn" data-act="arrive-set">📍 도착 알림 설정</button>'+installHtml().replace('<button type="button"','<button type="button" class="btn"')+'</div><span class="muted">'+VERSION+'</span>'}],saveLabel:'닫기',onSave:function(){}});m.querySelector('[data-close]').remove();}
 
 
 /* ---------- 사진 ---------- */
@@ -1666,13 +1666,13 @@ app.addEventListener('click',async function(e){
     case 'pw':closeModal();showChangePw(false);return;
     case 'menu':meMenu();return;
     case 'geo':geoCheck(true,el);return;
-    casarrive-set':arriveForm();return;
+    case 'arrive-set':arriveForm();return;
     case 'brief-open':S.brief={site:Number(el.dataset.id),at:null,dist:null};S.view='brief';render();var mb=document.getElementById('main');if(mb)mb.scrollTop=0;return;
     case 'brief-back':S.view='sites';S.siteId=S.brief&&S.brief.site;S.open=true;render();return;
     case 'brief-detail':S.view='sites';S.siteId=Number(el.dataset.id);S.tab=el.dataset.tab||'basic';S.open=true;render();return;
     case 'brief-visit':S.view='sites';S.siteId=Number(el.dataset.id);S.open=true;render();setTimeout(function(){visitForm(null,false);},50);return;
     case 'arr-reload':S.arr=null;render();return;
-    case 'e 'geo-toggle':try{localStorage.setItem('chm-sites-geo',geoOn()?'off':'on');}catch(x){}closeModal();toast(geoOn()?'사업장에 도착하면 사업장현황을 자동으로 엽니다':'위치 자동 열기를 껐습니다 (📍 버튼으로는 계속 찾을 수 있습니다)');if(geoOn())geoCheck(false);return;
+    case 'geo-toggle':try{localStorage.setItem('chm-sites-geo',geoOn()?'off':'on');}catch(x){}closeModal();toast(geoOn()?'사업장에 도착하면 사업장현황을 자동으로 엽니다':'위치 자동 열기를 껐습니다 (📍 버튼으로는 계속 찾을 수 있습니다)');if(geoOn())geoCheck(false);return;
     case 'reload':el.disabled=true;try{await loadAll();render();toast('새로 불러왔습니다');}catch(x){toast(errMsg(x));el.disabled=false;}return;
     case 'back':S.open=false;document.querySelector('.sites').setAttribute('data-open','0');return;
     case 'contact-add':contactForm(null);return;
@@ -1769,7 +1769,7 @@ function geoCheck(manual,btn){
     var lim=Math.max(GEO_RADIUS,Math.min(c.accuracy||0,600)); // 위치 오차가 크면 그만큼만 넓게 봄
     if(n.d>lim){if(manual)toast('가까운 사업장이 없습니다 · 가장 가까운 곳: '+n.s.name+' ('+(n.d<1000?Math.round(n.d)+'m':(n.d/1000).toFixed(1)+'km')+')',5000);return;}
     if(!manual&&S.geo.site===n.s.id)return; // 같은 사업장에 머무는 동안은 한 번만
-    S.geo.site=n.s.id;geoOpen(,c.accuracyn.s,n.d);
+    S.geo.site=n.s.id;geoOpen(n.s,n.d,c.accuracy);
   },function(err){done();
     if(err.code===1){try{sessionStorage.setItem('chm-sites-geo-denied','1');}catch(e){}if(manual)toast('위치 권한이 꺼져 있습니다. 브라우저·앱 설정에서 이 사이트의 위치 사용을 허용해 주세요',6000);}
     else if(manual)toast('현재 위치를 확인하지 못했습니다'+(err.code===3?' (시간 초과)':'')+'. 잠시 후 다시 시도하세요');
@@ -1779,7 +1779,7 @@ function geoOpen(site,d){
   var co=site.company||'CHM';if(S.company!==co){S.company=co;try{localStorage.setItem('chm-sites-company',co);}catch(e){}}
   closeModal();S.view='sites';S.siteId=site.id;S.tab='basic';S.open=true;S.zone='전체';S.q='';S.client='전체';S.short=false;S.mine=false;render();
   var m=document.getElementById('main');if(m)m.scrollTop=0;
-  toast('📍 현재 위치 '+site.name+' ('+Math.round(d)+'m) — 사업장현황을 열었습니;
+  toast('📍 현재 위치 '+site.name+' ('+Math.round(d)+'m) — 사업장현황을 열었습니다',5000);
   arriveNotify(site,d,acc);
 }
 /* 도착을 서버에 알리고(이력), 설정에 따라 본인 휴대폰으로 현황 링크 문자를 보낸다 */
@@ -1894,7 +1894,7 @@ function setArrive(){
     return '<tr><td class="num muted">'+dt(l.at)+'</td><td>'+esc(nm(l.user_id))+'</td><td>'+esc(st?st.name:'#'+l.site_id)+'</td><td class="n num">'+(l.dist!=null?l.dist+'m':'')+'</td><td>'+(l.sms?'<span class="chip good">발송</span>':'<span class="chip">—</span>')+'</td><td class="num">'+esc(l.phone||'')+'</td><td style="white-space:normal">'+esc(l.note||'')+'</td><td class="num muted">'+(l.opened_at?dt(l.opened_at):'')+'</td></tr>';}).join('');
   return '<section class="card"><h3>도착 알림 <span class="chip">이달 문자 '+(a.month||0)+'건</span><span class="muted" style="font-weight:400;font-size:12px">'+(a.ready?'발신번호 '+esc(a.sender)+(a.balance!=null?' · 솔라피 잔액 '+fmt(a.balance)+'원':'')+(a.err?' · '+esc(a.err):''):'문자 발송 설정(솔라피) 없음')+'</span><button type="button" class="btn sm r" data-act="arr-reload">새로고침</button></h3>'+
     '<p class="muted" style="font-size:12.5px">사업장 250m 안에서 앱을 열면 기록됩니다. 문자는 각자 내 계정 › 도착 알림 설정에서 켜고 끕니다. 링크는 24시간 동안 받은 본인만 열 수 있습니다.</p>'+
-    '<div class="tbl-wrap"><table><thead><tr><th>시각</th><th>이름</th><th>사업장</th><th class="n">거리</th><th>문자</th><th>번호</th><th>비고</th><th>링크 열람</th></tr></thead><tbody>'+(rows||'<tr><td colspan="8" class="muted">아직 도착 기록이 없습니다</td></tr>')+'</tbody></table></div></section>'다',5000);
+    '<div class="tbl-wrap"><table><thead><tr><th>시각</th><th>이름</th><th>사업장</th><th class="n">거리</th><th>문자</th><th>번호</th><th>비고</th><th>링크 열람</th></tr></thead><tbody>'+(rows||'<tr><td colspan="8" class="muted">아직 도착 기록이 없습니다</td></tr>')+'</tbody></table></div></section>';
 }
 async function onReturn(){if(!S.me)return;if(!(await ensureAal()))return;geoAuto();
   if(S.view==='dash'&&Date.now()-(S.lastLoad||0)>300e3){S.lastLoad=Date.now();loadAll().then(function(){if(S.me){S.keepScroll=true;render();}}).catch(function(){});}}
