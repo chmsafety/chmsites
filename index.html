@@ -589,7 +589,7 @@ function render(){
   if(!S.me)return showLogin();
   var nav=[['dash','대시보드'],['sites','사업장'],['visits','방문기록']];
   if(isAdmin())nav.push(['set','설정']);
-  var who='<b>'+esc(S.me.name)+' ('+esc(S.me.login_id)+')</b><span>'+(isAdmin()?'관리자 · 전체 입력·수정':'담당 사업장 '+S.me.sites.length+'곳 · 나머지는 조회만')+'</span><div class="actions"><button type="button" data-act="pw">비밀번호 변경</button><button type="button" data-act="logout">로그아웃</button>'+installHtml()+'</div>';
+  var who='<b>'+esc(S.me.name)+' ('+esc(S.me.login_id)+')</b><span>'+(isAdmin()?'관리자 · 전체 입력·수정':'담당 사업장 '+S.me.sites.length+'곳 · 나머지는 조회만')+'</span><div class="actions"><button type="button" data-act="pw">비밀번호 변경</button><button type="button" data-act="logout">로그아웃</button><button type="button" data-act="arrive-set">📍 도착 알림 설정</button>'+installHtml()+'</div>';
   var main=S.view==='dash'?viewDash():S.view==='sites'?viewSites():S.view==='visits'?viewVisits():S.view==='set'?viewSet():S.view==='brief'?viewBrief():viewDash();
   var sy=S.view==='sites'?null:(document.getElementById('main')||{}).scrollTop;
   app.innerHTML='<div class="shell"><nav class="nav" aria-label="메뉴"><div class="brand"><span class="mk">CHM</span><div><b>사업장 관리</b><small>'+esc(S.company)+' · 운영 '+activeSites().length+'곳</small></div></div>'+
