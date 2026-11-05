@@ -733,8 +733,10 @@ function tabEquip(s,ed){
 function kv(k,v,num){if(v===null||v===undefined||v==='')return '';return '<dt>'+esc(k)+'</dt><dd'+(num?' class="num"':'')+' style="white-space:pre-wrap">'+esc(v)+'</dd>';}
 var SAFETY_URL='https://chmsafety.github.io/safety-inspection/',EDU_URL='https://chmsafety.github.io/chmedu/';
 S.hist={};
-/* 연동 날짜가 'Tue Sep 29 2026 16:00:00 GMT+0900 (…)' 꼴이면 연도까지만 (2026-11-05) */
-function hdate(v){var t=String(v==null?'':v),m=t.match(/^([A-Z][a-z]{2} [A-Z][a-z]{2} \d{1,2} \d{4})\b.*GMT/);return m?m[1]:t;}
+/* 기타 이력 날짜 → '2026년 9월 29일 화요일' (연동 날짜가 'Tue Sep 29 2026 16:00:00 GMT+0900' 꼴이어도 한국 시간 기준) (2026-11-05) */
+function hdate(v){var t=String(v==null?'':v).trim();if(!t)return '';var y,mo,d,m=t.match(/^(\d{4})[-.\/](\d{1,2})[-.\/](\d{1,2})/);
+  if(m){y=+m[1];mo=+m[2];d=+m[3];}else{var ms=Date.parse(t);if(isNaN(ms))return t;var k=new Date(ms+9*3600e3);y=k.getUTCFullYear();mo=k.getUTCMonth()+1;d=k.getUTCDate();}
+  var w='일월화수목금토'.charAt(new Date(Date.UTC(y,mo-1,d)).getUTCDay());return y+'년 '+mo+'월 '+d+'일 '+w+'요일';}
 function tabHist(s){
   var h=S.hist[s.id];
   if(!h){loadHist(s.id,false);return '<div class="loading" style="height:120px">기존 시스템에서 이력을 불러오는 중… (처음엔 10~30초 걸릴 수 있어요)</div>';}
