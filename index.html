@@ -113,6 +113,13 @@ td.n,th.n{text-align:right}
 .rowi:last-child{border-bottom:0}
 .rowi:hover{background:var(--surface-2)}
 .rowi .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 대시보드 가로 넘침 방지 — 긴 사업장명·방문내용이 화면 폭을 밀어내지 않게 (2026-11-05) */
+.page{grid-template-columns:minmax(0,1fr)}
+.page>*,.dgrid>*,.kpis>*{min-width:0}
+.kpis{grid-template-columns:repeat(5,minmax(0,1fr))}
+.dgrid{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}
+.rows,.rowi{min-width:0}
+.rowi>*:not(.grow){flex:none}
 
 /* 사업장 */
 .sites{display:grid;grid-template-columns:330px 1fr;height:100%}
@@ -295,6 +302,7 @@ body{padding:0;overflow:hidden}
 @container (max-width:720px){.mbox .grid2,.mbox .grid3{grid-template-columns:1fr}}
 .nav button.it.only-phone{display:none}
 @container (max-width:720px){.nav button.it.only-phone{display:flex}}
+@container (max-width:720px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.dgrid{grid-template-columns:minmax(0,1fr)}}
 .login{overflow:auto;place-items:safe center;height:100%}
 .pstrip{display:flex;gap:6px;flex-wrap:wrap}
 .pthumb{width:68px;height:52px;border-radius:8px;overflow:hidden;border:1px solid var(--line);padding:0;background:var(--surface-2);display:grid;place-items:center;flex:none}
@@ -725,6 +733,8 @@ function tabEquip(s,ed){
 function kv(k,v,num){if(v===null||v===undefined||v==='')return '';return '<dt>'+esc(k)+'</dt><dd'+(num?' class="num"':'')+' style="white-space:pre-wrap">'+esc(v)+'</dd>';}
 var SAFETY_URL='https://chmsafety.github.io/safety-inspection/',EDU_URL='https://chmsafety.github.io/chmedu/';
 S.hist={};
+/* 연동 날짜가 'Tue Sep 29 2026 16:00:00 GMT+0900 (…)' 꼴이면 연도까지만 (2026-11-05) */
+function hdate(v){var t=String(v==null?'':v),m=t.match(/^([A-Z][a-z]{2} [A-Z][a-z]{2} \d{1,2} \d{4})\b.*GMT/);return m?m[1]:t;}
 function tabHist(s){
   var h=S.hist[s.id];
   if(!h){loadHist(s.id,false);return '<div class="loading" style="height:120px">기존 시스템에서 이력을 불러오는 중… (처음엔 10~30초 걸릴 수 있어요)</div>';}
@@ -734,10 +744,10 @@ function tabHist(s){
   var head='<div class="ph"><div>'+note+(d.warn?'<div class="err">'+esc(d.warn)+'</div>':'')+'</div><button type="button" class="btn sm" data-act="hist-reload">새로고침</button></div>';
   var gradeChip=function(g){return '<span class="chip '+(g==='A'?'good':g==='B'?'acc':g==='C'?'warn':'bad')+'">'+esc(g)+'</span>';};
   var none=function(t,err){return '<div class="empty">'+(err?'원본 시스템 오류: '+esc(err):esc(t))+'</div>';};
-  var insp=d.inspections.length?'<div class="tbl-wrap"><table><thead><tr><th>점검일</th><th>등급</th><th class="n">점수</th><th class="n">미흡</th><th>구분</th><th>점검자</th></tr></thead><tbody>'+d.inspections.map(function(r){return '<tr><td class="num">'+esc(r.date)+'</td><td>'+gradeChip(r.grade)+'</td><td class="n num">'+esc(r.score)+'</td><td class="n num">'+esc(r.bad)+'</td><td>'+esc(r.type)+'</td><td>'+esc(r.inspector)+'</td></tr>';}).join('')+'</tbody></table></div>':none('점검 기록이 없습니다.',d.errors.safety);
-  var fb=d.feedback?'<p style="margin:10px 0 0;font-size:13px">최근 개선 결과 ('+esc(d.feedback.date)+'): 미흡 '+d.feedback.total+'건 중 <b>'+d.feedback.done+'건 완료</b> '+(d.feedback.total&&d.feedback.done>=d.feedback.total?'<span class="chip good">완료</span>':'<span class="chip warn">진행 중</span>')+'</p>':'';
-  var acc=d.accidents.length?'<div class="tbl-wrap"><table><thead><tr><th>발생일</th><th>직군</th><th>재해유형</th><th>구분</th><th>진행상황</th><th class="n">휴직일수</th></tr></thead><tbody>'+d.accidents.map(function(r){return '<tr><td class="num">'+esc(r.date)+'</td><td>'+esc(r.job)+'</td><td>'+esc(r.type)+'</td><td>'+esc(r.category)+'</td><td><span class="chip">'+esc(r.status||'—')+'</span></td><td class="n num">'+(r.leaveDays==null?'—':esc(r.leaveDays))+'</td></tr>';}).join('')+'</tbody></table></div>':none('산업재해 기록이 없습니다.',d.errors.safety);
-  var edu=d.edu.length?'<div class="tbl-wrap"><table><thead><tr><th>교육일</th><th>과정</th><th>구분</th><th class="n">참석/대상</th><th class="n">평점</th><th>보고</th></tr></thead><tbody>'+d.edu.map(function(r){return '<tr><td class="num">'+esc(r.date)+'</td><td>'+esc(r.course)+'</td><td>'+esc(r.kind)+'</td><td class="n num">'+r.attend+'/'+r.target+'</td><td class="n num">'+(r.rating==null?'—':esc(r.rating))+'</td><td>'+(r.reported?'<span class="chip good">보고완료</span>':'<span class="chip">미보고</span>')+'</td></tr>';}).join('')+'</tbody></table></div>':none('교육 기록이 없습니다.',d.errors.edu);
+  var insp=d.inspections.length?'<div class="tbl-wrap"><table><thead><tr><th>점검일</th><th>등급</th><th class="n">점수</th><th class="n">미흡</th><th>구분</th><th>점검자</th></tr></thead><tbody>'+d.inspections.map(function(r){return '<tr><td class="num">'+esc(hdate(r.date))+'</td><td>'+gradeChip(r.grade)+'</td><td class="n num">'+esc(r.score)+'</td><td class="n num">'+esc(r.bad)+'</td><td>'+esc(r.type)+'</td><td>'+esc(r.inspector)+'</td></tr>';}).join('')+'</tbody></table></div>':none('점검 기록이 없습니다.',d.errors.safety);
+  var fb=d.feedback?'<p style="margin:10px 0 0;font-size:13px">최근 개선 결과 ('+esc(hdate(d.feedback.date))+'): 미흡 '+d.feedback.total+'건 중 <b>'+d.feedback.done+'건 완료</b> '+(d.feedback.total&&d.feedback.done>=d.feedback.total?'<span class="chip good">완료</span>':'<span class="chip warn">진행 중</span>')+'</p>':'';
+  var acc=d.accidents.length?'<div class="tbl-wrap"><table><thead><tr><th>발생일</th><th>직군</th><th>재해유형</th><th>구분</th><th>진행상황</th><th class="n">휴직일수</th></tr></thead><tbody>'+d.accidents.map(function(r){return '<tr><td class="num">'+esc(hdate(r.date))+'</td><td>'+esc(r.job)+'</td><td>'+esc(r.type)+'</td><td>'+esc(r.category)+'</td><td><span class="chip">'+esc(r.status||'—')+'</span></td><td class="n num">'+(r.leaveDays==null?'—':esc(r.leaveDays))+'</td></tr>';}).join('')+'</tbody></table></div>':none('산업재해 기록이 없습니다.',d.errors.safety);
+  var edu=d.edu.length?'<div class="tbl-wrap"><table><thead><tr><th>교육일</th><th>과정</th><th>구분</th><th class="n">참석/대상</th><th class="n">평점</th><th>보고</th></tr></thead><tbody>'+d.edu.map(function(r){return '<tr><td class="num">'+esc(hdate(r.date))+'</td><td>'+esc(r.course)+'</td><td>'+esc(r.kind)+'</td><td class="n num">'+r.attend+'/'+r.target+'</td><td class="n num">'+(r.rating==null?'—':esc(r.rating))+'</td><td>'+(r.reported?'<span class="chip good">보고완료</span>':'<span class="chip">미보고</span>')+'</td></tr>';}).join('')+'</tbody></table></div>':none('교육 기록이 없습니다.',d.errors.edu);
   var link=function(u){return '<a class="btn sm r" href="'+u+'" target="_blank" rel="noopener noreferrer">원본 시스템 ↗</a>';};
   var nameHint=(!d.inspections.length&&!d.accidents.length&&!d.edu.length)?'<p class="muted" style="font-size:12px;margin:0">기록이 하나도 없다면 다른 시스템에서 사업장 이름이 다를 수 있어요. 관리자가 설정 › 이력 연동에서 이름을 맞추면 표시됩니다.</p>':'';
   return head+
