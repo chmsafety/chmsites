@@ -365,8 +365,10 @@ var VERSION='9단계 · 2026-11-04';
 var GEO_RADIUS=250; // 현재 위치에서 이 거리(m) 안에 있는 사업장을 '도착'으로 봄
 var IDLE_MIN=30;
 var CATS=['관리','사무지원','시설','보안','CS','미화'];
-var EQ_TYPES={'냉동기':['터보','흡수식','스크류','히트펌프','기타'],'보일러':['관류','노통연관','온수','전기','기타']};
-var EQ_EXTRA={'냉동기':'냉매','보일러':'연료'};
+var EQ_TYPES={'냉동기':['터보','흡수식','스크류','히트펌프','기타'],'발전기':['비상용(디젤)','비상용(가스터빈)','상용','기타'],'보일러':['관류','노통연관','온수','전기','기타'],'냉각탑':['개방형','밀폐형','기타'],'AHU':['정풍량(CAV)','변풍량(VAV)','외기처리(OAU)','항온항습기','기타'],'FCU':['천장 매립형','천장 카세트형','바닥 노출형','기타'],'정화조실':['오수처리시설','정화조(부패탱크)','기타']};
+var EQ_EXTRA={'냉동기':'냉매','발전기':'연료','보일러':'연료','냉각탑':'흐름방식','AHU':'담당구역','FCU':'설치구역','정화조실':'처리방식'};
+var EQ_EXTRA_LIST={'냉동기':['R-134a','R-123','R-410A','R-513A','물/LiBr'],'발전기':['경유','LNG','기타'],'보일러':['LNG','경유','전기','LPG'],'냉각탑':['대향류','직교류'],'정화조실':['장기폭기','접촉산화','부패탱크','기타']};
+var EQ_CAP_PH={'냉동기':'예: 1,000 RT','발전기':'예: 500 kW (625 kVA)','보일러':'예: 2 t/h, 500,000 kcal/h','냉각탑':'예: 500 CRT','AHU':'예: 30,000 CMH','FCU':'예: 600 CFM','정화조실':'예: 300 ㎥/일 (1,500인용)'};
 
 var app=document.getElementById('app');
 if(!window.supabase||!window.supabase.createClient){app.innerHTML='<div class="loading">화면 구성 요소를 불러오지 못했습니다. 인터넷 연결을 확인하고 새로고침하세요.</div>';return;}
@@ -1180,8 +1182,8 @@ function equipForm(e,kind){
   var sid=S.siteId;kind=e?e.kind:kind;var types=EQ_TYPES[kind];var ex=EQ_EXTRA[kind];
   var f=[[types?{id:'type',label:'형식',type:'select',value:e?e.type:types[0],options:types}:{id:'type',label:'형식',value:e&&e.type},{id:'qty',label:'대수',type:'number',min:0,required:true,value:e?e.qty:1}],
     [{id:'maker',label:'제조사',value:e&&e.maker},{id:'model',label:'모델명',value:e&&e.model}],
-    [{id:'capacity',label:'용량',value:e&&e.capacity,placeholder:kind==='냉동기'?'예: 1,000 RT':kind==='보일러'?'예: 2 t/h, 500,000 kcal/h':''},{id:'year',label:'설치년도',type:'number',min:1950,value:e&&e.install_year}]];
-  if(ex)f.push([{id:'extra',label:ex,value:e&&e.extra?e.extra[ex]:'',list:kind==='냉동기'?['R-134a','R-123','R-410A','R-513A','물/LiBr']:['LNG','경유','전기','LPG']},{id:'vendor',label:'유지보수 업체',value:e&&e.vendor}]);
+    [{id:'capacity',label:'용량',value:e&&e.capacity,placeholder:EQ_CAP_PH[kind]||''},{id:'year',label:'설치년도',type:'number',min:1950,value:e&&e.install_year}]];
+  if(ex)f.push([{id:'extra',label:ex,value:e&&e.extra?e.extra[ex]:'',list:EQ_EXTRA_LIST[kind]},{id:'vendor',label:'유지보수 업체',value:e&&e.vendor}]);
   else f.push({id:'vendor',label:'유지보수 업체',value:e&&e.vendor});
   f.push({id:'memo',label:'메모',type:'textarea',rows:3,value:e&&e.memo});
   openForm({title:kind+(e?' 수정':' 추가'),fields:f,
