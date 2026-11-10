@@ -348,6 +348,8 @@ body{padding:0;overflow:hidden}
 .cph>img{aspect-ratio:4/3;border:1px solid var(--line)}
 .cph figcaption{font-size:12px;color:var(--ink-2);display:grid;gap:4px}
 .cph.off{opacity:.45}
+.cph select{width:100%;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface);font-size:12.5px}
+.kph{margin:0;display:grid;gap:2px;justify-items:center}.kph figcaption{font-size:10.5px;color:var(--ink-3)}
 </style>
 </head>
 <body>
@@ -598,7 +600,7 @@ function render(){
   var nav=[['dash','대시보드'],['sites','사업장'],['visits','방문기록']];
   if(isAdmin())nav.push(['set','설정']);
   var who='<b>'+esc(S.me.name)+' ('+esc(S.me.login_id)+')</b><span>'+(isAdmin()?'관리자 · 전체 입력·수정':'담당 사업장 '+S.me.sites.length+'곳 · 나머지는 조회만')+'</span><div class="actions"><button type="button" data-act="pw">비밀번호 변경</button><button type="button" data-act="logout">로그아웃</button><button type="button" data-act="arrive-set">📍 도착 알림 설정</button>'+installHtml()+'</div>';
-  var main=S.view==='dash'?viewDash():S.view==='sites'?viewSites():S.view==='visits'?viewVisits():S.view==='set'?viewSet():S.view==='brief'?viewBrief():viewDash();
+  var main=S.view==='dash'?viewDash():S.view==='sites'?viewSites():S.view==='visits'?viewVisits():S.view==='set'?viewSet():S.view==='brief'?viewBrief():S.view==='eqp'?viewEqp():viewDash();
   var sy=S.view==='sites'?null:(document.getElementById('main')||{}).scrollTop;
   app.innerHTML='<div class="shell"><nav class="nav" aria-label="메뉴"><div class="brand"><span class="mk">CHM</span><div><b>사업장 관리</b><small>'+esc(S.company)+' · 운영 '+activeSites().length+'곳</small></div></div>'+
     nav.map(function(n){return '<button type="button" class="it" data-nav="'+n[0]+'"'+(S.view===n[0]?' aria-current="page"':'')+'>'+I[n[0]==='set'?'set':n[0]]+'<span>'+n[1]+'</span></button>';}).join('')+
@@ -620,7 +622,7 @@ function viewDash(){
   var bars=CATS.map(function(c,k){var g=cat[k][0]-cat[k][1];return '<div class="bar"><span>'+c+'</span><span class="tr"><span class="fl" style="width:'+(cat[k][1]/max*100)+'%"></span></span><span class="v">'+fmt(cat[k][1])+' / '+fmt(cat[k][0])+(g>0?' <em>−'+g+'</em>':'')+'</span></div>';}).join('');
   var shortRows=short.slice(0,10).map(function(x){return '<button type="button" class="rowi" data-go="'+x.s.id+'"><span class="grow"><b>'+esc(x.s.name)+'</b> <span class="muted">· '+esc(clientName(x.s.client_id))+'</span></span><span class="num muted">'+x.t[1]+'/'+x.t[0]+'</span><span class="chip bad">결원 '+x.g+'</span></button>';}).join('')||'<div class="empty">결원이 있는 사업장이 없습니다.</div>';
   var vrows=coVisits().slice(0,6).map(visitRow).join('')||'<div class="empty">아직 방문기록이 없습니다.</div>';
-  return '<div class="page">'+coTabs()+'<div class="ph"><div><h1>대시보드 <span class="chip co-chip co-'+S.company.toLowerCase()+'">'+esc(S.company)+'</span></h1><p>'+esc(basis)+' · 본사 제외</p></div><div class="actions">'+(isAdmin()?'<button type="button" class="btn sm" data-act="go-imp">엑셀로 인원 반영</button>':'')+geoBtn()+'<button type="button" class="btn sm" data-act="reload">새로고침</button></div></div>'+
+  return '<div class="page">'+coTabs()+'<div class="ph"><div><h1>대시보드 <span class="chip co-chip co-'+S.company.toLowerCase()+'">'+esc(S.company)+'</span></h1><p>'+esc(basis)+' · 본사 제외</p></div><div class="actions">'+(isAdmin()?'<button type="button" class="btn sm" data-act="go-imp">엑셀로 인원 반영</button>':'')+(eqpCanUse()?'<button type="button" class="btn sm" data-act="go-eqp">📷 설비사진 올리기</button>':'')+geoBtn()+'<button type="button" class="btn sm" data-act="reload">새로고침</button></div></div>'+
    '<div class="kpis"><div class="kpi"><small>사업장</small><b>'+act.length+'</b></div><div class="kpi"><small>정원</small><b>'+fmt(tot[0])+'</b></div><div class="kpi"><small>현원</small><b>'+fmt(tot[1])+'</b></div><div class="kpi alert"><small>결원</small><b>'+fmt(gap)+'</b></div><div class="kpi"><small>충원율</small><b>'+rate+'%</b></div></div>'+
    '<div class="dgrid"><section class="card"><h3>직군별 현원 / 정원</h3><div class="bars">'+bars+'</div></section>'+
    '<section class="card"><h3>결원이 있는 사업장 <span class="chip bad r">'+short.length+'곳</span></h3><div class="rows">'+shortRows+'</div></section></div>'+
@@ -721,10 +723,10 @@ function peopleSection(s,ed){
    (cards?'<div class="people">'+cards+'</div>':'<div class="empty">등록된 직원이 없습니다.'+(ed?' 현장에서 만난 직원을 추가하고 나눈 이야기를 이력으로 남기세요.':'')+'</div>');
 }
 function tabEquip(s,ed){
-  var html='',kinds=codes('equipment_kind');
+  var html=ed?'<div class="actions" style="justify-content:flex-end"><button type="button" class="btn sm" data-act="go-eqp">📷 여러 사업장 설비사진 한꺼번에 올리기</button></div>':'',kinds=codes('equipment_kind');
   S.detail.equip.forEach(function(e){if(!kinds.some(function(k){return k.label===e.kind;}))kinds.push({label:e.kind});});
   kinds.forEach(function(k){var list=S.detail.equip.filter(function(e){return e.kind===k.label;});
-    html+='<div class="ph"><h3 style="font-size:14px">'+esc(k.label)+' <span class="chip">'+list.reduce(function(a,e){return a+(e.qty||0);},0)+'대</span></h3>'+(ed?'<button type="button" class="btn sm" data-act="equip-add" data-kind="'+esc(k.label)+'">'+I.plus+esc(k.label)+' 추가</button>':'')+'</div>';
+    html+='<div class="ph"><h3 style="font-size:14px">'+esc(k.label)+' <span class="chip">'+list.reduce(function(a,e){return a+(e.qty||0);},0)+'대</span></h3>'+(ed?'<button type="button" class="btn sm" data-act="equip-add" data-kind="'+esc(k.label)+'">'+I.plus+esc(k.label)+' 추가</button>':'')+'</div>'+kindStrip(k.label,ed);
     html+=list.length?'<div class="equip">'+list.map(function(e){var ex=EQ_EXTRA[e.kind];var exv=e.extra&&ex?e.extra[ex]:'';
       return '<article class="eq"><div class="eh"><b>'+esc((e.type?e.type+' ':'')+e.kind)+'</b><span class="chip">'+(e.qty||0)+'대</span>'+(ed?'<button type="button" class="btn sm" style="margin-left:auto" data-act="equip-edit" data-id="'+e.id+'">수정</button>':'')+'</div><div class="eb"><dl class="kv">'+
       kv('제조사',e.maker)+kv('모델',e.model,true)+kv('용량',e.capacity,true)+kv('설치년도',e.install_year,true)+(ex?kv(ex,exv):'')+kv('유지보수',e.vendor)+kv('메모',e.memo)+'</dl>'+photoStrip('equipment',e.id,ed)+'</div></article>';}).join('')+'</div>':'<div class="empty">등록된 '+esc(k.label)+'가 없습니다.</div>';});
@@ -1378,24 +1380,25 @@ function faceSlot(m,ed,type){type=type||'manager_face';var f=photosOf(type,m.id)
   if(f)return '<button type="button" class="photo face" data-act="photo-view" data-id="'+f.id+'" aria-label="얼굴 사진 보기">'+(S.purl[f.path]?'<img alt="" src="'+esc(S.purl[f.path])+'">':'')+'</button>';
   if(ed&&m.photo_consent_on)return '<label class="photo face add" title="얼굴 사진 올리기">+ 사진<input type="file" accept="image/*" hidden data-ptype="'+type+'" data-pid="'+m.id+'"></label>';
   return '<span class="photo">'+(m.photo_consent_on?'사진 없음':'동의 전')+'</span>';}
-function shrink(file){return new Promise(function(res,rej){
-  var done=function(src,w,h,rel){var k=Math.min(1,1600/Math.max(w,h));var c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);
-    c.getContext('2d').drawImage(src,0,0,c.width,c.height);if(rel)rel();c.toBlob(function(b){b?res(b):rej(new Error('사진을 변환하지 못했습니다'));},'image/jpeg',0.82);};
+function shrink(file,max,qual){return new Promise(function(res,rej){
+  var done=function(src,w,h,rel){var k=Math.min(1,(max||1600)/Math.max(w,h));var c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);
+    c.getContext('2d').drawImage(src,0,0,c.width,c.height);if(rel)rel();c.toBlob(function(b){b?res(b):rej(new Error('사진을 변환하지 못했습니다'));},'image/jpeg',qual||0.82);};
   if(window.createImageBitmap){createImageBitmap(file,{imageOrientation:'from-image'}).then(function(bm){done(bm,bm.width,bm.height,function(){bm.close&&bm.close();});}).catch(fallback);}else fallback();
-  function fallback(){var u=URL.createObjectURL(file),im=new Image();im.onload=function(){done(im,im.naturalWidth,im.naturalHeight,function(){URL.revokeObjectURL(u);});};im.onerror=function(){URL.revokeObjectURL(u);rej(new Error('사진 파일을 읽지 못했습니다 ('+file.name+')'));};im.src=u;}
+  function fallback(){var u=URL.createObjectURL(file),im=new Image();im.onload=function(){done(im,im.naturalWidth,im.naturalHeight,function(){URL.revokeObjectURL(u);});};im.onerror=function(){URL.revokeObjectURL(u);rej(new Error('사진 파일을 읽지 못했습니다'+(file.name?' ('+file.name+')':'')));};im.src=u;}
 });}
 function uid(){if(crypto.randomUUID)return crypto.randomUUID();var a=new Uint8Array(16);crypto.getRandomValues(a);return [].map.call(a,function(x){return ('0'+x.toString(16)).slice(-2);}).join('');}
-async function uploadPhotos(type,targetId,files){
+async function uploadPhotos(type,targetId,files,kind){
   var sid=S.siteId,ok=0;files=[].slice.call(files,0,10);
   var face=type==='manager_face'||type==='person_face';var before=face?photosOf(type,targetId):[];
   if(face)files=files.slice(0,1);
   for(var i=0;i<files.length;i++){
     toast('사진 올리는 중… ('+(i+1)+'/'+files.length+')');
-    try{var blob=await shrink(files[i]);
+    try{var taken=today();if(kind){var xf=await exifRead(files[i]);if(xf.date)taken=xf.date;}
+      var blob=await shrink(files[i]);
       var path=sid+'/'+type+'/'+uid()+'.jpg';
       var up=await sb.storage.from(BUCKET).upload(path,blob,{contentType:'image/jpeg',upsert:false,cacheControl:'3600'});
       if(up.error)throw up.error;
-      var ins=await sb.from('site_photos').insert({site_id:sid,target_type:type,target_id:targetId,path:path,taken_on:today()});
+      var ins=await sb.from('site_photos').insert(kind?{site_id:sid,target_type:type,target_id:null,kind:kind,path:path,taken_on:taken}:{site_id:sid,target_type:type,target_id:targetId,path:path,taken_on:today()});
       if(ins.error){await sb.storage.from(BUCKET).remove([path]);throw ins.error;}
       ok++;}
     catch(e){toast(errMsg(e));}
@@ -1409,13 +1412,13 @@ async function removeNotesFor(type,id){var ns=S.detail?S.detail.notes.filter(fun
   for(var i=0;i<ns.length;i++){await removePhotosFor('note',ns[i].id);await q(sb.from('site_notes').delete().eq('id',ns[i].id));}}
 function photoView(id){
   var p=(S.detail.photos||[]).filter(function(x){return x.id===id;})[0];if(!p)return;var ed=canEdit(p.site_id);
-  var m=openForm({title:'사진',fields:[{id:'x',type:'info',html:'<img class="pbig" alt="사진" src="'+esc(S.purl[p.path]||'')+'"><span>'+esc(p.taken_on||'')+' · 올린 사람 '+esc(memberName(p.created_by))+'</span>'}],
+  var m=openForm({title:'사진',fields:[{id:'x',type:'info',html:'<img class="pbig" alt="사진" src="'+esc(S.purl[p.path]||'')+'"><span>'+(p.kind?esc(p.kind)+' · ':'')+esc(p.taken_on||'')+' · 올린 사람 '+esc(memberName(p.created_by))+'</span>'}],
     saveLabel:'닫기',onSave:function(){},deleteLabel:'사진 삭제',onDelete:ed?async function(){await removePhoto(p);await loadDetail(S.siteId,true);openDetail(S.siteId,true);toast('사진을 삭제했습니다');}:null});
   var c=m.querySelector('[data-close]');if(c)c.remove();
 }
 app.addEventListener('change',function(e){var t=e.target;if(t.dataset&&t.dataset.fphoto&&t.files&&t.files.length){var fs=[].slice.call(t.files);t.value='';floorsPhoto(fs);return;}
   if(!t.dataset||!t.dataset.ptype||!t.files||!t.files.length)return;
-  var files=[].slice.call(t.files);t.value='';uploadPhotos(t.dataset.ptype,Number(t.dataset.pid),files);});
+  var files=[].slice.call(t.files);t.value='';uploadPhotos(t.dataset.ptype,Number(t.dataset.pid),files,t.dataset.pkind||null);});
 /* 서명 링크 만료 전에 다시 받기 (10분 링크, 8분마다 갱신) */
 setInterval(function(){if(S.me&&S.detail&&S.view==='sites'&&Date.now()-S.purlAt>480e3){var c=S.cst&&S.cst[S.siteId];signPhotos(S.detail.photos.concat(c&&c.photos||[])).then(function(){openDetail(S.siteId,true);});}},60e3);
 
@@ -1636,6 +1639,131 @@ function cphotoView(id){var h=S.cst[S.siteId];if(!h||!h.photos)return;var p=h.ph
   var m=openForm({title:'공사 사진',fields:[{id:'x',type:'info',html:'<img class="pbig" alt="'+esc(p.caption||'공사 사진')+'" src="'+esc(S.purl[p.path]||'')+'"><span><b>'+esc(p.caption||'')+'</b> · '+esc(p.r.report_date)+' 주간 보고</span>'}],saveLabel:'닫기',onSave:function(){}});
   var c=m.querySelector('[data-close]');if(c)c.remove();}
 
+/* ---------- 설비사진 한꺼번에 올리기 (2026-11-10 · 10단계) ----------
+   - 여러 사업장에서 찍은 설비 사진을 한 번에 고르면, 사진 속 촬영 위치(GPS)로 사업장을 찾아 나눠 담는다 (도착 알림과 같은 250m 기준)
+   - 위치정보가 없는 사진: 「지금 촬영」이면 현재 위치, 아니면 촬영일에 본인이 남긴 방문기록이 한 곳일 때 그 사업장을 추천, 그래도 없으면 직접 고름
+   - 설비 종류(냉동기·보일러…)는 올리기 전에 한 번 고르고, 확인 화면에서 사진별로 바꿀 수 있다
+   - 저장: site_photos (target_type 'equip_kind', kind=설비 종류) · 사진은 1600px로 줄여 site-photos/<사업장>/equip_kind/ 에 저장
+   - 관리자는 전체, 일반계정은 담당 사업장만 반영 */
+var EQP_MAX=60;
+async function exifRead(file){
+  var out={};
+  try{
+    var v=new DataView(await file.slice(0,262144).arrayBuffer());if(v.getUint16(0)!==0xFFD8)return out;
+    var o=2,base=-1;
+    while(o+4<=v.byteLength){var mk=v.getUint16(o);if((mk&0xFF00)!==0xFF00||mk===0xFFDA)break;var len=v.getUint16(o+2);
+      if(mk===0xFFE1&&v.getUint32(o+4)===0x45786966){base=o+10;break;}o+=2+len;}
+    if(base<0)return out;
+    var le=v.getUint16(base)===0x4949,u16=function(p){return v.getUint16(p,le);},u32=function(p){return v.getUint32(p,le);};
+    var ifd=function(off){var m={},p=base+off,n=u16(p);for(var i=0;i<n;i++){var e=p+2+i*12;m[u16(e)]={type:u16(e+2),count:u32(e+4),pos:e+8};}return m;};
+    var str=function(t){if(!t)return '';var p=t.count>4?base+u32(t.pos):t.pos,s='';for(var i=0;i<t.count;i++){var c=v.getUint8(p+i);if(!c)break;s+=String.fromCharCode(c);}return s;};
+    var dms=function(t){if(!t||t.count<3)return null;var p=base+u32(t.pos),r=[];for(var i=0;i<3;i++){var d=u32(p+i*8+4);r.push(d?u32(p+i*8)/d:0);}return r[0]+r[1]/60+r[2]/3600;};
+    var i0=ifd(u32(base+4)),when='';
+    if(i0[0x8769]){var ex=ifd(u32(i0[0x8769].pos));when=str(ex[0x9003])||str(ex[0x9004]);}
+    if(!when)when=str(i0[0x0132]);
+    var m=/^(\d{4}):(\d{2}):(\d{2})/.exec(when);if(m&&m[1]>'2000')out.date=m[1]+'-'+m[2]+'-'+m[3];
+    if(i0[0x8825]){var g=ifd(u32(i0[0x8825].pos)),la=dms(g[2]),lo=dms(g[4]);
+      if(la!=null&&lo!=null&&(Math.abs(la)>0.01||Math.abs(lo)>0.01)&&Math.abs(la)<=90&&Math.abs(lo)<=180){
+        out.lat=str(g[1]).charAt(0)==='S'?-la:la;out.lng=str(g[3]).charAt(0)==='W'?-lo:lo;}}
+  }catch(e){}
+  return out;
+}
+function eqpSites(){return S.sites.filter(function(s){return s.status==='운영'&&canEdit(s.id);});}
+function eqpCanUse(){return !!S.me&&(isAdmin()||S.me.sites.length>0);}
+function eqpKinds(){return codes('equipment_kind').map(function(k){return k.label;});}
+/* 좌표에서 가까운 운영 사업장 (가까운 순) */
+function eqpNear(lat,lng,lim){var arr=[];
+  S.sites.forEach(function(x){if(x.status!=='운영'||!x.building_id)return;var b=S.bld[x.building_id];if(!b)return;var d=geoDist(lat,lng,b.lat,b.lng);if(d<=lim)arr.push({s:x,d:d});});
+  return arr.sort(function(a,b){return a.d-b.d;});}
+function eqpAssign(it,lat,lng,lim,src){
+  var near=eqpNear(lat,lng,lim);if(!near.length){it.note='촬영 위치 근처('+lim+'m)에 등록된 사업장이 없습니다';return;}
+  var tie=near.filter(function(n){return n.d-near[0].d<30;});                       // 같은 건물·바로 옆 건물
+  var mine=tie.filter(function(n){return canEdit(n.s.id);});
+  if(!mine.length){it.note='가장 가까운 '+near[0].s.name+'은(는) 담당 사업장이 아닙니다';return;}
+  var pick=mine.filter(function(n){return (n.s.company||'CHM')===S.company;})[0]||mine[0];
+  it.site=pick.s.id;it.src=src;it.dist=Math.round(pick.d);if(mine.length>1)it.check='같은 위치 사업장 '+mine.length+'곳 — 확인';
+}
+function eqpHere(){return new Promise(function(res){if(!navigator.geolocation)return res(null);
+  navigator.geolocation.getCurrentPosition(function(p){res({lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy||0});},function(){res(null);},{enableHighAccuracy:true,timeout:10000,maximumAge:60000});});}
+async function eqpLoad(files,cam){
+  if(!eqpCanUse()){toast('담당 사업장이 없어 사진을 올릴 수 없습니다');return;}
+  var e=S.eqp||(S.eqp={kind:eqpKinds()[0]||'',items:[]});if(e.busy)return;
+  files=[].slice.call(files);var room=EQP_MAX-e.items.length;
+  if(files.length>room){toast('한 번에 '+EQP_MAX+'장까지 올릴 수 있습니다. 앞에서 '+Math.max(room,0)+'장만 담습니다',5000);files=files.slice(0,Math.max(room,0));}
+  if(!files.length)return;
+  e.busy=true;var here=null,hereAsked=false,noGps=0;
+  for(var i=0;i<files.length;i++){
+    toast('사진 읽는 중… ('+(i+1)+'/'+files.length+')',20000);
+    var f=files[i],it={name:f.name,kind:e.kind,site:null,src:'',date:today()};
+    try{var x=await exifRead(f);if(x.date)it.date=x.date;
+      it.blob=await shrink(f);it.url=URL.createObjectURL(await shrink(it.blob,360,0.7));
+      if(x.lat!=null)eqpAssign(it,x.lat,x.lng,GEO_RADIUS,'gps');
+      else if(cam){if(!hereAsked){hereAsked=true;here=await eqpHere();}
+        if(here)eqpAssign(it,here.lat,here.lng,Math.max(GEO_RADIUS,Math.min(here.acc,600)),'here');else it.note='현재 위치를 확인하지 못했습니다';}
+      else{noGps++;
+        var vs={};S.visits.forEach(function(v){if(v.visit_date===it.date&&v.created_by===S.me.user_id&&canEdit(v.site_id))vs[v.site_id]=1;});
+        var ks=Object.keys(vs);if(x.date&&ks.length===1){it.site=Number(ks[0]);it.src='visit';}
+        else it.note='사진에 위치정보가 없습니다';}
+    }catch(err){it.bad=errMsg(err);it.skip=true;}
+    e.items.push(it);
+  }
+  e.busy=false;S.view='eqp';render();var mn=document.getElementById('main');if(mn)mn.scrollTop=0;
+  var ok=e.items.filter(function(p){return p.site&&!p.skip;}).length;
+  toast('사진 '+e.items.length+'장 중 '+ok+'장의 사업장을 찾았습니다'+(noGps?' · 위치정보 없는 사진 '+noGps+'장':''),5000);
+}
+function eqpClear(){if(S.eqp)S.eqp.items.forEach(function(p){if(p.url)URL.revokeObjectURL(p.url);});S.eqp=null;}
+function eqpSrc(p){return p.src==='gps'?'<span class="chip good">촬영 위치 '+p.dist+'m</span>':p.src==='here'?'<span class="chip good">현재 위치 '+p.dist+'m</span>':p.src==='visit'?'<span class="chip acc">방문기록으로 추정</span>':p.src==='manual'?'<span class="chip">직접 지정</span>':'';}
+function viewEqp(){
+  var e=S.eqp||(S.eqp={kind:eqpKinds()[0]||'',items:[]}),kinds=eqpKinds(),sites=eqpSites();
+  if(e.kind&&kinds.indexOf(e.kind)<0)kinds.push(e.kind);
+  var pickers='<div class="actions" style="margin-top:10px"><label class="btn pri" style="cursor:pointer">'+I.plus+'사진 여러 장 고르기<input type="file" id="eqfile" accept="image/*" multiple hidden></label>'+
+    '<label class="btn" style="cursor:pointer">📷 지금 촬영<input type="file" id="eqcam" accept="image/*" capture="environment" hidden></label>'+(e.items.length?'':'<button type="button" class="btn" data-act="eqp-cancel">닫기</button>')+'</div>';
+  var kindSel='<div class="filters" style="margin:4px 0 0;align-items:center"><span class="muted" style="font-size:12.5px">설비 종류</span>'+kinds.map(function(k){return '<button type="button" class="fchip" data-eqk="'+esc(k)+'" aria-pressed="'+(e.kind===k)+'">'+esc(k)+'</button>';}).join('')+'</div>';
+  var head='<div class="ph"><div><h1>설비사진 올리기</h1><p>'+(isAdmin()?'전체 사업장':'담당 사업장 '+S.me.sites.length+'곳')+' · 사진 속 촬영 위치로 사업장을 자동으로 찾습니다</p></div></div>';
+  if(!eqpCanUse())return '<div class="page">'+head+'<div class="empty">담당 사업장이 없습니다. 관리자에게 담당 지정을 요청하세요.</div></div>';
+  if(!e.items.length)return '<div class="page">'+head+'<section class="card"><h3>사진 고르기</h3>'+
+    '<p class="muted" style="font-size:12.5px;margin:0 0 8px">여러 사업장에서 찍은 사진을 한꺼번에 골라도 됩니다. 사진마다 촬영 위치를 읽어 '+GEO_RADIUS+'m 안의 사업장에 나눠 담고, 반영하기 전에 확인·수정할 수 있습니다. 한 번에 '+EQP_MAX+'장까지.</p>'+kindSel+pickers+
+    '<p class="muted" style="font-size:12px;margin:10px 0 0">· 카카오톡 등으로 전달받은 사진은 위치정보가 지워져 있어 사업장을 직접 골라야 합니다.<br>· 안드로이드는 갤러리 대신 「파일」에서 고르거나 「지금 촬영」을 쓰면 위치가 인식됩니다.<br>· 사진 원본은 올리지 않고 줄인 사진만 저장합니다.</p></section></div>';
+  var live=e.items.filter(function(p){return !p.skip;}),ready=live.filter(function(p){return p.site&&p.kind;}),miss=live.length-ready.length;
+  var opt=function(p){return '<option value="">사업장 선택…</option>'+sites.map(function(s){return '<option value="'+s.id+'"'+(p.site===s.id?' selected':'')+'>'+esc(s.name)+'</option>';}).join('');};
+  var kopt=function(p){return kinds.map(function(k){return '<option'+(p.kind===k?' selected':'')+'>'+esc(k)+'</option>';}).join('');};
+  var fig=function(p){var i=e.items.indexOf(p);
+    return '<figure class="cph'+(p.skip?' off':'')+'">'+(p.url?'<img alt="" src="'+esc(p.url)+'">':'<div class="pthumb" style="width:100%;height:110px;font-size:11px;padding:6px;text-align:center">'+esc(p.bad||'')+'</div>')+
+      '<figcaption><div class="num muted">'+esc(p.date)+'</div>'+(p.bad?'':'<div>'+eqpSrc(p)+(p.check?' <span class="chip warn">'+esc(p.check)+'</span>':'')+(!p.site&&p.note?'<span class="chip warn" style="white-space:normal">'+esc(p.note)+'</span>':'')+'</div>'+
+      '<select data-eqsite="'+i+'" aria-label="사업장">'+opt(p)+'</select><select data-eqkind="'+i+'" aria-label="설비 종류">'+kopt(p)+'</select>'+
+      '<label style="font-size:12px;display:flex;gap:4px;align-items:center"><input type="checkbox" data-eqskip="'+i+'"'+(p.skip?' checked':'')+' style="width:auto">빼기</label>')+'</figcaption></figure>';};
+  var groups=[],by={};e.items.forEach(function(p){var k=p.site||0;if(!by[k]){by[k]=[];groups.push(k);}by[k].push(p);});
+  groups.sort(function(a,b){if(!a||!b)return a?1:-1;var x=byId(S.sites,a),y=byId(S.sites,b);return String(x?x.name:'').localeCompare(String(y?y.name:''),'ko');});
+  var secs=groups.map(function(k){var s=k?byId(S.sites,k):null,list=by[k];
+    return '<section class="card"><h3>'+(s?esc(s.name)+' <span class="chip co-chip co-'+esc((s.company||'CHM').toLowerCase())+'">'+esc(s.company||'CHM')+'</span>':'<span class="chip warn">사업장 미지정</span>')+' <span class="chip">'+list.filter(function(p){return !p.skip;}).length+'장</span>'+(s?'':'<span class="muted" style="font-weight:400;font-size:12px">사업장을 고르면 해당 사업장으로 옮겨집니다</span>')+'</h3><div class="cphs">'+list.map(fig).join('')+'</div></section>';}).join('');
+  return '<div class="page">'+head+'<section class="card"><h3>확인 후 반영 <span class="chip">'+live.length+'장</span><span class="chip acc">사업장 '+groups.filter(Boolean).length+'곳</span></h3>'+
+    '<div class="actions"><button type="button" class="btn pri" data-act="eqp-apply"'+(ready.length?'':' disabled')+'>'+ready.length+'장 반영</button><button type="button" class="btn" data-act="eqp-cancel">취소</button>'+
+    (miss?'<span class="chip warn">사업장 미지정 '+miss+'장 — 반영에서 빠짐</span>':'<span class="chip good">모두 지정됨</span>')+'</div>'+
+    '<p class="muted" style="font-size:12.5px;margin:10px 0 0">사진을 더 담으려면 (새로 담는 사진의 설비 종류를 먼저 고르세요)</p>'+kindSel+pickers+'</section>'+secs+'</div>';
+}
+async function eqpApply(btn){
+  var e=S.eqp;if(!e||e.busy)return;var list=e.items.filter(function(p){return !p.skip&&p.site&&p.kind&&p.blob;});if(!list.length)return;
+  e.busy=true;if(btn){btn.disabled=true;btn.textContent='올리는 중…';}
+  var ok=0,fail=0,last='',touched={};
+  for(var i=0;i<list.length;i++){var p=list[i];toast('사진 올리는 중… ('+(i+1)+'/'+list.length+')',30000);
+    try{var path=p.site+'/equip_kind/'+uid()+'.jpg';
+      var up=await sb.storage.from(BUCKET).upload(path,p.blob,{contentType:'image/jpeg',upsert:false,cacheControl:'3600'});if(up.error)throw up.error;
+      var ins=await sb.from('site_photos').insert({site_id:p.site,target_type:'equip_kind',target_id:null,kind:p.kind,path:path,taken_on:p.date||today()});
+      if(ins.error){await sb.storage.from(BUCKET).remove([path]);throw ins.error;}
+      ok++;touched[p.site]=1;p.done=true;if(p.url)URL.revokeObjectURL(p.url);}
+    catch(x){fail++;last=errMsg(x);}
+  }
+  e.busy=false;e.items=e.items.filter(function(p){return !p.done;});
+  if(touched[S.detailFor])S.detailFor=null;
+  var n=Object.keys(touched).length,left=e.items.filter(function(p){return !p.skip;}).length;
+  if(!left){eqpClear();if(n===1){S.view='sites';S.siteId=Number(Object.keys(touched)[0]);S.tab='equip';S.open=true;var st=byId(S.sites,S.siteId);if(st&&(st.company||'CHM')!==S.company)S.company=st.company||'CHM';}else S.view='dash';}
+  render();
+  toast(fail?'사진 '+ok+'장 반영, '+fail+'장 실패: '+last:'사업장 '+n+'곳에 사진 '+ok+'장을 반영했습니다'+(left?' · 미지정 '+left+'장이 남아 있습니다':''),6000);
+}
+function kindPhotos(kind){return (S.detail&&S.detail.photos||[]).filter(function(p){return p.target_type==='equip_kind'&&p.kind===kind;}).sort(function(a,b){return String(b.taken_on||'').localeCompare(String(a.taken_on||''))||b.id-a.id;});}
+function kindStrip(kind,ed){var list=kindPhotos(kind);if(!list.length&&!ed)return '';
+  return '<div class="pstrip" style="margin:0 0 10px">'+list.map(function(p){return '<figure class="kph">'+thumb(p)+'<figcaption class="num">'+esc(String(p.taken_on||'').slice(2))+'</figcaption></figure>';}).join('')+
+    (ed?'<label class="pthumb add" title="'+esc(kind)+' 사진 추가">+ 사진<input type="file" accept="image/*" multiple hidden data-ptype="equip_kind" data-pkind="'+esc(kind)+'" data-pid="0"></label>':'')+'</div>';}
 /* ---------- 계정 잠금 표시 ---------- */
 function isLocked(login){var x=S.locks&&S.locks[login];return !!(x&&x.locked_until&&new Date(x.locked_until).getTime()>Date.now());}
 function lockChip(login){if(isLocked(login)){var mn=Math.ceil((new Date(S.locks[login].locked_until).getTime()-Date.now())/60000);return '<span class="chip bad">잠김 '+mn+'분</span> ';}
@@ -1669,6 +1797,7 @@ app.addEventListener('click',async function(e){
   if(el.id==='fm'){S.mine=!S.mine;render();return;}
   if(el.dataset.co){setCompany(el.dataset.co);return;}
   if(el.dataset.vp){S.vp=el.dataset.vp;render();return;}
+  if(el.dataset.eqk&&S.eqp){S.eqp.kind=el.dataset.eqk;S.keepScroll=true;render();return;}
   if(el.dataset.stab){S.stab=el.dataset.stab;if(S.stab==='audit')S.audit=null;render();return;}
   if(el.dataset.tel){if(el.textContent===el.dataset.full)return;var p=el.dataset.tel.split(':');
     try{await q(sb.rpc('site_log_view',{p_kind:p[0],p_id:Number(p[1])}));el.textContent=el.dataset.full;toast('전체 번호 표시 · 열람이 기록되었습니다');}catch(x){toast(errMsg(x));}return;}
@@ -1709,6 +1838,9 @@ app.addEventListener('click',async function(e){
     case 'go-cimp':S.view='set';S.stab='const';render();var mn2=document.getElementById('main');if(mn2)mn2.scrollTop=0;return;
     case 'const-reload':delete S.cst[S.siteId];document.getElementById('detail').innerHTML=viewDetail();return;
     case 'cphoto-view':cphotoView(id);return;
+    case 'go-eqp':closeModal();S.view='eqp';S.open=false;render();var mn3=document.getElementById('main');if(mn3)mn3.scrollTop=0;return;
+    case 'eqp-apply':eqpApply(el);return;
+    case 'eqp-cancel':eqpClear();S.view='dash';render();return;
     case 'cimp-apply':cimpApply(el);return;
     case 'cimp-cancel':if(S.cimp)S.cimp.photos.forEach(function(p){if(p.url)URL.revokeObjectURL(p.url);});S.cimp=null;S.keepScroll=true;render();return;
     case 'cimp-open':if(S.cimp){var dE=document.getElementById('cimp-date'),tE=document.getElementById('cimp-title');if(dE)S.cimp.date=dE.value;if(tE)S.cimp.title=tE.value;S.cimp.open=S.cimp.open===el.dataset.key?null:el.dataset.key;S.keepScroll=true;render();}return;
@@ -1742,6 +1874,10 @@ app.addEventListener('change',async function(e){
   if(t.id==='fc'){S.client=t.value;render();}
   else if(t.id==='su'){S.su=t.value;S.keepScroll=true;render();}
   else if(t.id==='impfile'&&t.files&&t.files[0]){var f=t.files[0];t.value='';impLoad(f);}
+  else if((t.id==='eqfile'||t.id==='eqcam')&&t.files&&t.files.length){var ef=[].slice.call(t.files),cam=t.id==='eqcam';t.value='';eqpLoad(ef,cam);}
+  else if(t.dataset.eqsite!==undefined&&S.eqp){var e1=S.eqp.items[Number(t.dataset.eqsite)];if(e1){e1.site=Number(t.value)||null;e1.src=e1.site?'manual':'';e1.check='';S.keepScroll=true;render();}}
+  else if(t.dataset.eqkind!==undefined&&S.eqp){var e2=S.eqp.items[Number(t.dataset.eqkind)];if(e2)e2.kind=t.value;}
+  else if(t.dataset.eqskip!==undefined&&S.eqp){var e3=S.eqp.items[Number(t.dataset.eqskip)];if(e3){e3.skip=t.checked;S.keepScroll=true;render();}}
   else if(t.id==='cfile'&&t.files&&t.files[0]){var cf=t.files[0];t.value='';cimpLoad(cf);}
   else if(t.dataset.csite&&S.cimp){var ps=t.dataset.csite.split(':'),o=ps[0].charAt(0)==='i'?S.cimp.items[Number(ps[0].slice(1))]:S.cimp.photos[Number(ps[0].slice(1))],sid2=Number(ps[1]);
     if(o){o.sites=o.sites.filter(function(x){return x!==sid2;});if(t.checked)o.sites.push(sid2);o.src='manual';var dE2=document.getElementById('cimp-date'),tE2=document.getElementById('cimp-title');if(dE2)S.cimp.date=dE2.value;if(tE2)S.cimp.title=tE2.value;S.keepScroll=true;render();}}
@@ -1769,7 +1905,7 @@ function geoDist(a,b,c,d){var R=6371000,x=(c-a)*Math.PI/180,y=(d-b)*Math.PI/180,
 function geoNear(lat,lng){var best=null;
   S.sites.forEach(function(x){if(x.status!=='운영'||!x.building_id)return;var b=S.bld[x.building_id];if(!b)return;var d=geoDist(lat,lng,b.lat,b.lng);if(!best||d<best.d)best={s:x,d:d};});
   return best;}
-function geoAuto(){if(!S.me||!geoOn()||!navigator.geolocation)return;if(document.getElementById('modal'))return; // 입력 중이면 방해하지 않음
+function geoAuto(){if(!S.me||!geoOn()||!navigator.geolocation)return;if(document.getElementById('modal'))return;if(S.view==='eqp')return; // 입력 중이면 방해하지 않음
   if(Date.now()-S.geo.at<90e3)return;try{if(sessionStorage.getItem('chm-sites-geo-denied'))return;}catch(e){}geoCheck(false);}
 function geoCheck(manual,btn){
   if(!navigator.geolocation){if(manual)toast('이 기기에서는 위치를 쓸 수 없습니다');return;}
