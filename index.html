@@ -173,7 +173,8 @@ td.n,th.n{text-align:right}
 .eq{border:1px solid var(--line);border-radius:10px;background:var(--surface);overflow:hidden}
 .eq .eh{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--surface-2)}
 .eq .eh b{font-size:14px}
-.eq .eb{padding:12px 14px;display:grid;gap:10px}
+.eq .eb{padding:12px 14px;display:grid;gap:10px}.eq .eb:empty{display:none}
+.eqcover{display:block;position:relative;width:100%;aspect-ratio:4/3;max-height:260px;border:0;padding:0;margin:0;background:var(--surface-2);overflow:hidden;cursor:pointer}.eqcover img{width:100%;height:100%;object-fit:cover;display:block}.eqcover .num{position:absolute;right:8px;bottom:8px;font-size:11px;background:rgba(0,0,0,.55);color:#fff;padding:2px 6px;border-radius:6px}.eqcover.add{display:grid;place-items:center;color:var(--ink-3);font-size:13px;border-bottom:1px dashed var(--line);aspect-ratio:auto;height:90px}
 .eq .ph2{display:flex;gap:6px}.eq .ph2 .photo{width:64px;height:48px}
 .readonly{background:var(--warn-soft);color:var(--warn);font-size:12.5px;padding:8px 12px;border-radius:8px;display:flex;gap:8px;align-items:center}
 .fab{position:sticky;bottom:18px;align-self:flex-end;margin:-70px 18px 18px 0;z-index:5;box-shadow:var(--shadow);border-radius:999px;padding:10px 16px}
@@ -727,11 +728,15 @@ function peopleSection(s,ed){
 function tabEquip(s,ed){
   var html=ed?'<div class="actions" style="justify-content:flex-end"><button type="button" class="btn sm" data-act="go-eqp">📷 여러 사업장 설비사진 한꺼번에 올리기</button></div>':'',kinds=codes('equipment_kind');
   S.detail.equip.forEach(function(e){if(!kinds.some(function(k){return k.label===e.kind;}))kinds.push({label:e.kind});});
-  kinds.forEach(function(k){var list=S.detail.equip.filter(function(e){return e.kind===k.label;});
-    html+='<div class="ph"><h3 style="font-size:14px">'+esc(k.label)+' <span class="chip">'+list.reduce(function(a,e){return a+(e.qty||0);},0)+'대</span></h3>'+(ed?'<button type="button" class="btn sm" data-act="equip-add" data-kind="'+esc(k.label)+'">'+I.plus+esc(k.label)+' 추가</button>':'')+'</div>'+kindStrip(k.label,ed);
-    html+=list.length?'<div class="equip">'+list.map(function(e){var ex=EQ_EXTRA[e.kind];var exv=e.extra&&ex?e.extra[ex]:'';
-      return '<article class="eq"><div class="eh"><b>'+esc((e.type?e.type+' ':'')+e.kind)+'</b><span class="chip">'+(e.qty||0)+'대</span>'+(ed?'<button type="button" class="btn sm" style="margin-left:auto" data-act="equip-edit" data-id="'+e.id+'">수정</button>':'')+'</div><div class="eb"><dl class="kv">'+
-      kv('제조사',e.maker)+kv('모델',e.model,true)+kv('용량',e.capacity,true)+kv('설치년도',e.install_year,true)+(ex?kv(ex,exv):'')+kv('유지보수',e.vendor)+kv('메모',e.memo)+'</dl>'+photoStrip('equipment',e.id,ed)+'</div></article>';}).join('')+'</div>':'<div class="empty">등록된 '+esc(k.label)+'가 없습니다.</div>';});
+  kinds.forEach(function(k){var list=S.detail.equip.filter(function(e){return e.kind===k.label;}).sort(function(a,b){return a.id-b.id;});
+    html+='<div class="ph"><h3 style="font-size:14px">'+esc(k.label)+' <span class="chip">'+list.reduce(function(a,e){return a+(e.qty||0);},0)+'대</span></h3>'+(ed?'<div class="actions" style="margin:0"><label class="btn sm" title="사진 1장마다 '+esc(k.label)+' 1대 제원카드가 만들어집니다">📷 사진으로 추가<input type="file" accept="image/*" multiple hidden data-ptype="equip_kind" data-pkind="'+esc(k.label)+'" data-pid="0"></label><button type="button" class="btn sm" data-act="equip-add" data-kind="'+esc(k.label)+'">'+I.plus+'직접 추가</button></div>':'')+'</div>'+(kindPhotos(k.label).length?kindStrip(k.label,false):'');
+    html+=list.length?'<div class="equip">'+list.map(function(e,i){var ex=EQ_EXTRA[e.kind];var exv=e.extra&&ex?e.extra[ex]:'';
+      var ph=photosOf('equipment',e.id).slice().sort(function(a,b){return a.id-b.id;}),cv=ph[0],rest=ph.slice(1);
+      var blank=!(e.type||e.maker||e.model||e.capacity||e.install_year||exv||e.vendor||e.memo);
+      var cover=cv?'<button type="button" class="eqcover" data-act="photo-view" data-id="'+cv.id+'" aria-label="사진 크게 보기">'+(S.purl[cv.path]?'<img alt="" loading="lazy" src="'+esc(S.purl[cv.path])+'">':'')+(cv.taken_on?'<span class="num">'+esc(cv.taken_on)+'</span>':'')+'</button>':(ed?'<label class="eqcover add">📷 사진 올리기<input type="file" accept="image/*" multiple hidden data-ptype="equipment" data-pid="'+e.id+'"></label>':'');
+      return '<article class="eq">'+cover+'<div class="eh"><b>'+(i+1)+'호기 · '+esc((e.type?e.type+' ':'')+e.kind)+'</b><span class="chip">'+(e.qty||0)+'대</span>'+(blank?'<span class="chip warn">제원 미입력</span>':'')+(ed?'<button type="button" class="btn sm" style="margin-left:auto" data-act="equip-edit" data-id="'+e.id+'">'+(blank?'제원 입력':'수정')+'</button>':'')+'</div><div class="eb">'+(blank?'':'<dl class="kv">'+
+      kv('제조사',e.maker)+kv('모델',e.model,true)+kv('용량',e.capacity,true)+kv('설치년도',e.install_year,true)+(ex?kv(ex,exv):'')+kv('유지보수',e.vendor)+kv('메모',e.memo)+'</dl>')+
+      (cv&&(rest.length||ed)?'<div class="pstrip">'+rest.map(thumb).join('')+(ed?addTile('equipment',e.id,'+ 사진'):'')+'</div>':'')+'</div></article>';}).join('')+'</div>':'<div class="empty">등록된 '+esc(k.label)+'가 없습니다.'+(ed?' 「사진으로 추가」로 사진을 올리면 1장마다 1대씩 제원카드가 만들어집니다.':'')+'</div>';});
   return html+'<p class="muted" style="font-size:12px;margin:0">설비 종류는 설정 › 선택목록에서 추가합니다.</p>';
 }
 function kv(k,v,num){if(v===null||v===undefined||v==='')return '';return '<dt>'+esc(k)+'</dt><dd'+(num?' class="num"':'')+' style="white-space:pre-wrap">'+esc(v)+'</dd>';}
@@ -1180,7 +1185,7 @@ function personForm(p){
 }
 function equipForm(e,kind){
   var sid=S.siteId;kind=e?e.kind:kind;var types=EQ_TYPES[kind];var ex=EQ_EXTRA[kind];
-  var f=[[types?{id:'type',label:'형식',type:'select',value:e?e.type:types[0],options:types}:{id:'type',label:'형식',value:e&&e.type},{id:'qty',label:'대수',type:'number',min:0,required:true,value:e?e.qty:1}],
+  var f=[[types?{id:'type',label:'형식',type:'select',value:e&&e.type||'',options:[{value:'',label:'선택 안 함'}].concat(types)}:{id:'type',label:'형식',value:e&&e.type},{id:'qty',label:'대수',type:'number',min:0,required:true,value:e?e.qty:1}],
     [{id:'maker',label:'제조사',value:e&&e.maker},{id:'model',label:'모델명',value:e&&e.model}],
     [{id:'capacity',label:'용량',value:e&&e.capacity,placeholder:EQ_CAP_PH[kind]||''},{id:'year',label:'설치년도',type:'number',min:1950,value:e&&e.install_year}]];
   if(ex)f.push([{id:'extra',label:ex,value:e&&e.extra?e.extra[ex]:'',list:EQ_EXTRA_LIST[kind]},{id:'vendor',label:'유지보수 업체',value:e&&e.vendor}]);
@@ -1406,7 +1411,7 @@ async function uploadPhotos(type,targetId,files,kind){
     catch(e){toast(errMsg(e));}
   }
   if(ok&&face){for(var j=0;j<before.length;j++){try{await removePhoto(before[j]);}catch(e){}}}
-  if(ok){await loadDetail(sid,true);openDetail(sid,true);toast('사진 '+ok+'장을 올렸습니다');}
+  if(ok){await loadDetail(sid,true);openDetail(sid,true);toast(kind?kind+' '+ok+'대 제원카드를 만들었습니다 — 카드의 「제원 입력」으로 내용을 채우세요':'사진 '+ok+'장을 올렸습니다',kind?6000:undefined);}
 }
 async function removePhoto(p){var r=await sb.storage.from(BUCKET).remove([p.path]);if(r.error)throw r.error;await q(sb.from('site_photos').delete().eq('id',p.id));}
 async function removePhotosFor(type,id){var list=photosOf(type,id);for(var i=0;i<list.length;i++)await removePhoto(list[i]);}
@@ -1760,7 +1765,7 @@ async function eqpApply(btn){
   var n=Object.keys(touched).length,left=e.items.filter(function(p){return !p.skip;}).length;
   if(!left){eqpClear();if(n===1){S.view='sites';S.siteId=Number(Object.keys(touched)[0]);S.tab='equip';S.open=true;var st=byId(S.sites,S.siteId);if(st&&(st.company||'CHM')!==S.company)S.company=st.company||'CHM';}else S.view='dash';}
   render();
-  toast(fail?'사진 '+ok+'장 반영, '+fail+'장 실패: '+last:'사업장 '+n+'곳에 사진 '+ok+'장을 반영했습니다'+(left?' · 미지정 '+left+'장이 남아 있습니다':''),6000);
+  toast(fail?'사진 '+ok+'장 반영, '+fail+'장 실패: '+last:'사업장 '+n+'곳에 사진 '+ok+'장(설비 '+ok+'대 제원카드)을 반영했습니다'+(left?' · 미지정 '+left+'장이 남아 있습니다':''),6000);
 }
 function kindPhotos(kind){return (S.detail&&S.detail.photos||[]).filter(function(p){return p.target_type==='equip_kind'&&p.kind===kind;}).sort(function(a,b){return String(b.taken_on||'').localeCompare(String(a.taken_on||''))||b.id-a.id;});}
 function kindStrip(kind,ed){var list=kindPhotos(kind);if(!list.length&&!ed)return '';
