@@ -145,9 +145,9 @@ function render(d){
   var bb=d.bldg||[];
   h+=bfold('bldg','건축물 일반현황',bb.length?' <span class="n">'+bb.reduce(function(a,b){return a+(b.rows||[]).length;},0)+'개 항목'+(bb.length>1?' · '+bb.length+'개 동':'')+'</span>':'',briefBldg(bb),true);
   var vs=d.visits||[],lastV=vs[0],days=lastV?Math.round((Date.now()+9*3600e3-new Date(lastV.visit_date+'T00:00:00Z').getTime())/864e5):null;
-  var vh='<section><h2>최근 방문 <span class="n">전체 '+(d.visits_total||0)+'건</span>'+(lastV?'<span class="upd">마지막 '+esc(lastV.visit_date)+'</span>':'')+'</h2><div class="bx">'+(vs.length?vs.map(function(v){
+  var vh=bfold('visit','최근 방문',' <span class="n">전체 '+(d.visits_total||0)+'건</span>'+(lastV?'<span class="upd">마지막 '+esc(lastV.visit_date)+'</span>':''),'<div class="bx">'+(vs.length?vs.map(function(v){
     return '<div class="row"><div class="dt">'+esc(md(v.visit_date))+'</div><div class="l"><div class="mt">'+esc([v.purpose==='기타'?v.purpose_etc||v.purpose:v.purpose,v.visitor,v.attendee].filter(Boolean).join(' · '))+'</div><div style="font-size:13.5px;margin-top:2px;white-space:pre-wrap">'+esc(String(v.content||'').slice(0,160))+(String(v.content||'').length>160?'…':'')+'</div></div></div>';}).join(''):'<div class="empty">방문기록이 없습니다</div>')+'</div>'+
-    (days!=null&&days>=30?'<div class="nt"><span>⏳</span><span>지난 방문 후 <b>'+days+'일</b> 지났습니다.</span></div>':'')+'</section>';
+    (days!=null&&days>=30?'<div class="nt"><span>⏳</span><span>지난 방문 후 <b>'+days+'일</b> 지났습니다.</span></div>':''),false);
   var ci=d.const_items||[];
   h+=bfold('const','공사현황',' <span class="n">진행 '+ci.length+'건</span>'+(d.const_last?'<span class="upd">주간보고 '+esc(d.const_last)+'</span>':''),'<div class="bx">'+(ci.length?ci.map(function(it){var p=it.progress==null?null:Math.max(0,Math.min(100,Number(it.progress)));
     return '<div class="row"><div class="l"><div class="nm">'+esc(it.name)+(it.stale?' <span class="old">('+esc(it.report_date)+' 보고)</span>':'')+'</div><div class="mt">'+esc([it.contractor,it.period].filter(Boolean).join(' · '))+'</div><div class="cb"><i style="width:'+(p||0)+'%"></i></div>'+(it.this_work?'<div class="mt" style="margin-top:4px">금주: '+esc(it.this_work)+'</div>':'')+(it.remark?'<div class="mt">특기: '+esc(it.remark)+'</div>':'')+'</div><div class="pct">'+(p==null?'—':p+'%')+'</div></div>';}).join(''):'<div class="empty">진행 중인 공사가 없습니다</div>')+'</div>',false);
