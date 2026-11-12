@@ -253,6 +253,15 @@ body.reordering .person:not(.dragging){transition:none}
 .brief .gh{display:flex;justify-content:space-between;padding:6px 14px;font-size:12px;font-weight:600;color:var(--ink-2);background:var(--paper);border-top:1px solid var(--line)}
 .brief .gh:first-child{border-top:0}
 .brief .gh span{font-weight:400;color:var(--ink-3)}
+.brief details.fold>summary{list-style:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.brief details.fold>summary::-webkit-details-marker{display:none}
+.brief details.fold>summary h2 .cv{margin-left:auto;color:var(--ink-3);font-size:13px;font-weight:400;transition:transform .15s}
+.brief details.fold>summary h2 .upd+.cv{margin-left:0}
+.brief details.fold:not([open])>summary h2{margin-bottom:0;padding:10px 14px;background:var(--surface);border:1px solid var(--line);border-radius:12px;align-items:center}
+.brief details.fold:not([open])>summary h2 .cv{transform:rotate(-90deg)}
+.brief .row.kr{padding:7px 14px;font-size:13.5px}
+.brief .row.kr .k{flex:none;width:88px;color:var(--ink-3);font-size:12.5px;padding-top:1px}
+.brief .row.kr .l{white-space:pre-wrap}
 .brief .tel{flex:none;padding:5px 11px;border-radius:8px;background:var(--accent-soft);color:var(--accent);font-weight:600;font-size:12.5px;text-decoration:none;white-space:nowrap}
 .brief .more{text-align:center;margin-top:8px;font-size:13px}
 .brief .old{color:var(--bad);font-size:12px}
@@ -1897,6 +1906,7 @@ document.addEventListener('pointerup',function(e){if(DG&&e.pointerId===DG.pid)dr
 document.addEventListener('pointercancel',function(e){if(DG&&e.pointerId===DG.pid)dragEnd(DG.on&&DG.touch);});
 document.addEventListener('touchmove',function(e){if(DG&&DG.on&&e.cancelable)e.preventDefault();},{passive:false});
 document.addEventListener('contextmenu',function(e){if(DG&&DG.touch)e.preventDefault();});
+app.addEventListener('toggle',function(e){var t=e.target;if(t&&t.dataset&&t.dataset.fold){if(!S.bopen)S.bopen={};S.bopen[t.dataset.fold]=t.open;}},true);
 app.addEventListener('dragstart',function(e){if(e.target.closest&&e.target.closest('.person[data-drag]'))e.preventDefault();});
 document.addEventListener('keydown',function(e){if(e.key==='Escape'&&DG&&DG.on)dragEnd(false);});
 app.addEventListener('click',async function(e){
@@ -2078,6 +2088,12 @@ function histPick(d){var k=function(a){return (a||[]).map(function(r){var o={};f
   var i=k(d.inspections),a=k(d.accidents),e=k(d.edu);
   return {fetched_at:d.fetched_at,errors:d.errors||{},inspections:i.slice(0,3),n_ins:i.length,accidents:a.slice(0,3),n_acc:a.length,edu:e.slice(0,3),n_edu:e.length,
     feedback:d.feedback?{date:hiso(d.feedback.date),total:d.feedback.total,done:d.feedback.done}:null};}
+function briefBldg(bl){
+  if(!bl||!bl.length)return '<div class="bx"><div class="empty">건축물 일반현황 자료가 없습니다</div></div>';
+  return '<div class="bx">'+bl.map(function(b){return (bl.length>1||b.label?'<div class="gh">'+esc(b.label||'건물')+'</div>':'')+(b.rows||[]).map(function(r){return '<div class="row kr"><div class="k">'+esc(r[0])+'</div><div class="l">'+esc(r[1])+'</div></div>';}).join('');}).join('')+'</div>';
+}
+function bfold(key,title,extra,body,open){if(S.bopen&&S.bopen[key]!==undefined)open=S.bopen[key];
+  return '<section><details class="fold" data-fold="'+key+'"'+(open?' open':'')+'><summary><h2>'+title+(extra||'')+'<span class="cv" aria-hidden="true">▾</span></h2></summary>'+body+'</details></section>';}
 function briefHist(H){
   var d8=function(x){x=String(x||'');return /^\d{4}-\d{2}-\d{2}$/.test(x)?x.slice(2).replace(/-/g,'.'):x;};
   var E=H.errors||{};
@@ -2115,6 +2131,9 @@ function viewBrief(){
   var bd=baseDateOf(s.id);
   h+='<section><h2>인원현황 <span class="n">정원 '+fmt(t[0])+' · 현원 '+fmt(t[1])+(gap>0?' · <span class="old">결원 '+fmt(gap)+'</span>':'')+'</span>'+(bd?'<span class="upd">'+esc(bd)+' 기준</span>':'')+'</h2><div class="bx"><div class="kv">'+(cells||'<div><b>—</b><span>인원 자료 없음</span></div>')+'</div>'+
     (mg.length?'<div class="pl">'+mg.map(function(m){return '<div><b>'+esc(m.role==='직접입력'?m.role_etc||'':m.role)+'</b> '+esc(m.name)+(m.phone?' <span class="muted">'+esc(m.phone)+'</span>':'')+'</div>';}).join('')+'</div>':'')+'</div></section>';
+  // 건축물 일반현황
+  var bb=infoBlocks(s,'bldg_info');
+  h+=bfold('bldg','건축물 일반현황',bb.length?' <span class="n">'+bb.reduce(function(a,b){return a+(b.rows||[]).length;},0)+'개 항목'+(bb.length>1?' · '+bb.length+'개 동':'')+'</span>':'',briefBldg(bb),true);
   // 최근 방문
   var vs=D.visits.slice(0,3),lastV=D.visits[0],days=lastV?Math.round((new Date(today())-new Date(lastV.visit_date))/864e5):null;
   h+='<section><h2>최근 방문 <span class="n">전체 '+D.visits.length+'건</span>'+(lastV?'<span class="upd">마지막 '+esc(lastV.visit_date)+'</span>':'')+'</h2><div class="bx">'+(vs.length?vs.map(function(v){
@@ -2131,11 +2150,11 @@ function viewBrief(){
     ch=(ing.length?ing.map(function(it){var p=it.progress==null?null:Math.max(0,Math.min(100,Number(it.progress)));
       return '<div class="row"><div class="l"><div class="nm">'+esc(it.name)+(it.r.report_date<lastR?' <span class="old">('+esc(it.r.report_date)+' 보고)</span>':'')+'</div><div class="mt">'+esc([it.contractor,it.period].filter(Boolean).join(' · '))+'</div><div class="cb"><i style="width:'+(p||0)+'%"></i></div>'+(it.this_work?'<div class="mt" style="margin-top:4px">금주: '+esc(it.this_work)+'</div>':'')+(it.remark?'<div class="mt">특기: '+esc(it.remark)+'</div>':'')+'</div><div class="pct">'+(p==null?'—':p+'%')+'</div></div>';}).join(''):'<div class="empty">진행 중인 공사가 없습니다</div>');
     ch='<div class="bx">'+ch+'</div>'+(cst.photos.length?'<div class="more"><button type="button" class="btn sm" data-act="brief-detail" data-id="'+s.id+'" data-tab="const">공사 사진 '+cst.photos.length+'장 보기</button></div>':'');}
-  h+='<section><h2>공사현황'+(cst&&cst.items?' <span class="n">진행 '+(function(){var seen={},n=0;cst.items.slice().sort(function(a,b){return a.r.report_date<b.r.report_date?1:-1;}).forEach(function(it){if(seen[it.pkey])return;seen[it.pkey]=1;if(!CST_DONE(it))n++;});return n;})()+'건</span>':'')+(cst&&cst.items&&cst.items.length?'<span class="upd">주간보고 '+esc(cst.items.reduce(function(m,it){return it.r.report_date>m?it.r.report_date:m;},''))+'</span>':'')+'</h2>'+ch+'</section>';
+  h+=bfold('const','공사현황',''+(cst&&cst.items?' <span class="n">진행 '+(function(){var seen={},n=0;cst.items.slice().sort(function(a,b){return a.r.report_date<b.r.report_date?1:-1;}).forEach(function(it){if(seen[it.pkey])return;seen[it.pkey]=1;if(!CST_DONE(it))n++;});return n;})()+'건</span>':'')+(cst&&cst.items&&cst.items.length?'<span class="upd">주간보고 '+esc(cst.items.reduce(function(m,it){return it.r.report_date>m?it.r.report_date:m;},''))+'</span>':''),ch,false);
   // 설비현황 요약
   var yr=new Date().getFullYear(),kinds={},ko=[];D.equip.forEach(function(e){if(!kinds[e.kind]){kinds[e.kind]={q:0,old:null,n:0};ko.push(e.kind);}var k=kinds[e.kind];k.q+=e.qty||0;k.n++;if(e.install_year&&(!k.old||e.install_year<k.old))k.old=e.install_year;});
-  h+='<section><h2>설비현황 요약 <span class="n">'+D.equip.reduce(function(a,e){return a+(e.qty||0);},0)+'대</span></h2><div class="bx">'+(ko.length?ko.map(function(k){var x=kinds[k],age=x.old?yr-x.old:null;
-    return '<div class="row"><div class="l"><div class="nm">'+esc(k)+' <span class="muted" style="font-weight:400">'+x.q+'대</span></div><div class="mt">'+esc(D.equip.filter(function(e){return e.kind===k;}).map(function(e){return [e.type,e.maker,e.capacity].filter(Boolean).join(' ');}).filter(Boolean).slice(0,3).join(' / '))+'</div></div>'+(age!=null?'<div class="pct" style="font-size:13px;font-weight:500;'+(age>=15?'color:var(--bad)':'color:var(--ink-3)')+'">'+x.old+'년'+(age>=15?' 노후':'')+'</div>':'')+'</div>';}).join(''):'<div class="empty">등록된 설비가 없습니다</div>')+'</div></section>';
+  h+=bfold('equip','설비현황 요약',' <span class="n">'+D.equip.reduce(function(a,e){return a+(e.qty||0);},0)+'대</span>','<div class="bx">'+(ko.length?ko.map(function(k){var x=kinds[k],age=x.old?yr-x.old:null;
+    return '<div class="row"><div class="l"><div class="nm">'+esc(k)+' <span class="muted" style="font-weight:400">'+x.q+'대</span></div><div class="mt">'+esc(D.equip.filter(function(e){return e.kind===k;}).map(function(e){return [e.type,e.maker,e.capacity].filter(Boolean).join(' ');}).filter(Boolean).slice(0,3).join(' / '))+'</div></div>'+(age!=null?'<div class="pct" style="font-size:13px;font-weight:500;'+(age>=15?'color:var(--bad)':'color:var(--ink-3)')+'">'+x.old+'년'+(age>=15?' 노후':'')+'</div>':'')+'</div>';}).join(''):'<div class="empty">등록된 설비가 없습니다</div>')+'</div>',false);
   // 기타 이력 (안전보건점검·산업재해·교육 — 기존 시스템에서 읽어 옴)
   var hs=S.hist[s.id],hh='',hn='',hu='';
   if(!hs){loadHist(s.id,false).then(function(){if(S.view==='brief')render();});hs=S.hist[s.id];}
@@ -2143,7 +2162,7 @@ function viewBrief(){
   else if(hs.error)hh='<div class="bx"><div class="empty">이력을 불러오지 못했습니다: '+esc(hs.error)+'</div></div>';
   else{var H=histPick(hs.data);hh=briefHist(H)+'<div class="more"><button type="button" class="btn sm" data-act="brief-detail" data-id="'+s.id+'" data-tab="hist">기타 이력 전체 보기</button></div>';
     hn=' <span class="n">점검 '+H.n_ins+' · 산재 '+H.n_acc+' · 교육 '+H.n_edu+'</span>';hu=H.fetched_at?'<span class="upd">'+esc(dt(H.fetched_at).slice(5,10).replace('-','.'))+' 기준</span>':'';}
-  h+='<section><h2>기타 이력'+hn+hu+'</h2>'+hh+'</section>';
+  h+=bfold('hist','기타 이력',hn+hu,hh,false);
   return '<div class="brief">'+back+head+h+'<p class="muted" style="font-size:12px;margin-top:24px">사업장 관리 앱 · 문자 링크는 받은 뒤 24시간 동안 본인 계정으로만 열립니다.</p></div>';
 }
 
