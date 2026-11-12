@@ -2130,9 +2130,9 @@ function viewBrief(){
   h+=bfold('bldg','건축물 일반현황',bb.length?' <span class="n">'+bb.reduce(function(a,b){return a+(b.rows||[]).length;},0)+'개 항목'+(bb.length>1?' · '+bb.length+'개 동':'')+'</span>':'',briefBldg(bb),true);
   // 최근 방문
   var vs=D.visits.slice(0,3),lastV=D.visits[0],days=lastV?Math.round((new Date(today())-new Date(lastV.visit_date))/864e5):null;
-  var vh='<section><h2>최근 방문 <span class="n">전체 '+D.visits.length+'건</span>'+(lastV?'<span class="upd">마지막 '+esc(lastV.visit_date)+'</span>':'')+'</h2><div class="bx">'+(vs.length?vs.map(function(v){
+  var vh=bfold('visit','최근 방문',' <span class="n">전체 '+D.visits.length+'건</span>'+(lastV?'<span class="upd">마지막 '+esc(lastV.visit_date)+'</span>':''),'<div class="bx">'+(vs.length?vs.map(function(v){
     return '<div class="row"><div class="dt">'+esc(String(v.visit_date).slice(5).replace('-','.'))+'</div><div class="l"><div class="mt">'+esc([v.purpose==='기타'?v.purpose_etc||v.purpose:v.purpose,v.visitor,v.attendee].filter(Boolean).join(' · '))+'</div><div style="font-size:13.5px;margin-top:2px;white-space:pre-wrap">'+esc(String(v.content||'').slice(0,160))+(String(v.content||'').length>160?'…':'')+'</div></div></div>';}).join(''):'<div class="empty">방문기록이 없습니다</div>')+'</div>'+
-    (days!=null&&days>=30?'<div class="nt"><span>⏳</span><span>지난 방문 후 <b>'+days+'일</b> 지났습니다.</span></div>':'')+'</section>';
+    (days!=null&&days>=30?'<div class="nt"><span>⏳</span><span>지난 방문 후 <b>'+days+'일</b> 지났습니다.</span></div>':''),false);
   // 공사현황
   var ch='';
   if(!cst||cst.loading)ch='<div class="loading" style="height:60px">불러오는 중…</div>';
