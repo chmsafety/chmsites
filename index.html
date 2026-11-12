@@ -2136,7 +2136,7 @@ function viewBrief(){
   h+=bfold('bldg','건축물 일반현황',bb.length?' <span class="n">'+bb.reduce(function(a,b){return a+(b.rows||[]).length;},0)+'개 항목'+(bb.length>1?' · '+bb.length+'개 동':'')+'</span>':'',briefBldg(bb),true);
   // 최근 방문
   var vs=D.visits.slice(0,3),lastV=D.visits[0],days=lastV?Math.round((new Date(today())-new Date(lastV.visit_date))/864e5):null;
-  h+='<section><h2>최근 방문 <span class="n">전체 '+D.visits.length+'건</span>'+(lastV?'<span class="upd">마지막 '+esc(lastV.visit_date)+'</span>':'')+'</h2><div class="bx">'+(vs.length?vs.map(function(v){
+  var vh='<section><h2>최근 방문 <span class="n">전체 '+D.visits.length+'건</span>'+(lastV?'<span class="upd">마지막 '+esc(lastV.visit_date)+'</span>':'')+'</h2><div class="bx">'+(vs.length?vs.map(function(v){
     return '<div class="row"><div class="dt">'+esc(String(v.visit_date).slice(5).replace('-','.'))+'</div><div class="l"><div class="mt">'+esc([v.purpose==='기타'?v.purpose_etc||v.purpose:v.purpose,v.visitor,v.attendee].filter(Boolean).join(' · '))+'</div><div style="font-size:13.5px;margin-top:2px;white-space:pre-wrap">'+esc(String(v.content||'').slice(0,160))+(String(v.content||'').length>160?'…':'')+'</div></div></div>';}).join(''):'<div class="empty">방문기록이 없습니다</div>')+'</div>'+
     (days!=null&&days>=30?'<div class="nt"><span>⏳</span><span>지난 방문 후 <b>'+days+'일</b> 지났습니다.</span></div>':'')+'</section>';
   // 공사현황
@@ -2163,6 +2163,7 @@ function viewBrief(){
   else{var H=histPick(hs.data);hh=briefHist(H)+'<div class="more"><button type="button" class="btn sm" data-act="brief-detail" data-id="'+s.id+'" data-tab="hist">기타 이력 전체 보기</button></div>';
     hn=' <span class="n">점검 '+H.n_ins+' · 산재 '+H.n_acc+' · 교육 '+H.n_edu+'</span>';hu=H.fetched_at?'<span class="upd">'+esc(dt(H.fetched_at).slice(5,10).replace('-','.'))+' 기준</span>':'';}
   h+=bfold('hist','기타 이력',hn+hu,hh,false);
+  h+=vh;   // 최근 방문은 맨 아래
   return '<div class="brief">'+back+head+h+'<p class="muted" style="font-size:12px;margin-top:24px">사업장 관리 앱 · 문자 링크는 받은 뒤 24시간 동안 본인 계정으로만 열립니다.</p></div>';
 }
 
