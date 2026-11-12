@@ -61,6 +61,15 @@ section h2 .upd{margin-left:auto;font-size:12px;color:var(--ink-3);font-weight:4
 .gh{display:flex;justify-content:space-between;padding:6px 14px;font-size:12px;font-weight:600;color:var(--ink-2);background:var(--paper);border-top:1px solid var(--line)}
 .gh:first-child{border-top:0}
 .gh span{font-weight:400;color:var(--ink-3)}
+details.fold>summary{list-style:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary h2 .cv{margin-left:auto;color:var(--ink-3);font-size:13px;font-weight:400;transition:transform .15s}
+details.fold>summary h2 .upd+.cv{margin-left:0}
+details.fold:not([open])>summary h2{margin-bottom:0;padding:10px 14px;background:var(--surface);border:1px solid var(--line);border-radius:12px;align-items:center}
+details.fold:not([open])>summary h2 .cv{transform:rotate(-90deg)}
+.row.kr{padding:7px 14px;font-size:13.5px}
+.row.kr .k{flex:none;width:88px;color:var(--ink-3);font-size:12.5px;padding-top:1px}
+.row.kr .l{white-space:pre-wrap}
 .muted{color:var(--ink-3)}
 .foot{font-size:12px;color:var(--ink-3);margin-top:24px;line-height:1.6}
 .loading{padding:60px 0;text-align:center;color:var(--ink-3)}
@@ -96,6 +105,12 @@ function load(pin){
     app.innerHTML='<div class="brand"><b>CHM</b> 사업장 관리 · 도착 브리핑</div><div class="gate"><h1>'+(j&&j.expired?'링크가 만료됐습니다':j&&j.locked?'링크가 잠겼습니다':'열 수 없습니다')+'</h1><p>'+esc((j&&j.error)||('오류 '+st))+'</p><a href="'+APP+'">앱에서 열기 ›</a></div>';})
   .catch(function(e){gate('연결에 실패했습니다. 잠시 후 다시 시도하세요');});
 }
+function briefBldg(bl){
+  if(!bl||!bl.length)return '<div class="bx"><div class="empty">건축물 일반현황 자료가 없습니다</div></div>';
+  return '<div class="bx">'+bl.map(function(b){return (bl.length>1||b.label?'<div class="gh">'+esc(b.label||'건물')+'</div>':'')+(b.rows||[]).map(function(r){return '<div class="row kr"><div class="k">'+esc(r[0])+'</div><div class="l">'+esc(r[1])+'</div></div>';}).join('');}).join('')+'</div>';
+}
+function bfold(key,title,extra,body,open){
+  return '<section><details class="fold"'+(open?' open':'')+'><summary><h2>'+title+(extra||'')+'<span class="cv" aria-hidden="true">▾</span></h2></summary>'+body+'</details></section>';}
 function briefHist(H){
   var d8=function(x){x=String(x||'');return /^\d{4}-\d{2}-\d{2}$/.test(x)?x.slice(2).replace(/-/g,'.'):x;};
   var E=H.errors||{};
@@ -127,18 +142,20 @@ function render(d){
   var gap=q-cur;
   h+='<section><h2>인원현황 <span class="n">정원 '+fmt(q)+' · 현원 '+fmt(cur)+(gap>0?' · <span class="old">결원 '+fmt(gap)+'</span>':'')+'</span>'+(d.staffing.base_date?'<span class="upd">'+esc(d.staffing.base_date)+' 기준</span>':'')+'</h2><div class="bx"><div class="kv">'+(cells||'<div><b>—</b><span>인원 자료 없음</span></div>')+'</div>'+
     (mg.length?'<div class="pl">'+mg.map(function(m){return '<div><b>'+esc(m.role==='직접입력'?m.role_etc||'':m.role)+'</b> '+esc(m.name)+(m.phone?' <a class="muted" href="tel:'+esc(String(m.phone).replace(/[^0-9+]/g,''))+'">'+esc(m.phone)+'</a>':'')+'</div>';}).join('')+'</div>':'')+'</div></section>';
+  var bb=d.bldg||[];
+  h+=bfold('bldg','건축물 일반현황',bb.length?' <span class="n">'+bb.reduce(function(a,b){return a+(b.rows||[]).length;},0)+'개 항목'+(bb.length>1?' · '+bb.length+'개 동':'')+'</span>':'',briefBldg(bb),true);
   var vs=d.visits||[],lastV=vs[0],days=lastV?Math.round((Date.now()+9*3600e3-new Date(lastV.visit_date+'T00:00:00Z').getTime())/864e5):null;
   h+='<section><h2>최근 방문 <span class="n">전체 '+(d.visits_total||0)+'건</span>'+(lastV?'<span class="upd">마지막 '+esc(lastV.visit_date)+'</span>':'')+'</h2><div class="bx">'+(vs.length?vs.map(function(v){
     return '<div class="row"><div class="dt">'+esc(md(v.visit_date))+'</div><div class="l"><div class="mt">'+esc([v.purpose==='기타'?v.purpose_etc||v.purpose:v.purpose,v.visitor,v.attendee].filter(Boolean).join(' · '))+'</div><div style="font-size:13.5px;margin-top:2px;white-space:pre-wrap">'+esc(String(v.content||'').slice(0,160))+(String(v.content||'').length>160?'…':'')+'</div></div></div>';}).join(''):'<div class="empty">방문기록이 없습니다</div>')+'</div>'+
     (days!=null&&days>=30?'<div class="nt"><span>⏳</span><span>지난 방문 후 <b>'+days+'일</b> 지났습니다.</span></div>':'')+'</section>';
   var ci=d.const_items||[];
-  h+='<section><h2>공사현황 <span class="n">진행 '+ci.length+'건</span>'+(d.const_last?'<span class="upd">주간보고 '+esc(d.const_last)+'</span>':'')+'</h2><div class="bx">'+(ci.length?ci.map(function(it){var p=it.progress==null?null:Math.max(0,Math.min(100,Number(it.progress)));
-    return '<div class="row"><div class="l"><div class="nm">'+esc(it.name)+(it.stale?' <span class="old">('+esc(it.report_date)+' 보고)</span>':'')+'</div><div class="mt">'+esc([it.contractor,it.period].filter(Boolean).join(' · '))+'</div><div class="cb"><i style="width:'+(p||0)+'%"></i></div>'+(it.this_work?'<div class="mt" style="margin-top:4px">금주: '+esc(it.this_work)+'</div>':'')+(it.remark?'<div class="mt">특기: '+esc(it.remark)+'</div>':'')+'</div><div class="pct">'+(p==null?'—':p+'%')+'</div></div>';}).join(''):'<div class="empty">진행 중인 공사가 없습니다</div>')+'</div></section>';
+  h+=bfold('const','공사현황',' <span class="n">진행 '+ci.length+'건</span>'+(d.const_last?'<span class="upd">주간보고 '+esc(d.const_last)+'</span>':''),'<div class="bx">'+(ci.length?ci.map(function(it){var p=it.progress==null?null:Math.max(0,Math.min(100,Number(it.progress)));
+    return '<div class="row"><div class="l"><div class="nm">'+esc(it.name)+(it.stale?' <span class="old">('+esc(it.report_date)+' 보고)</span>':'')+'</div><div class="mt">'+esc([it.contractor,it.period].filter(Boolean).join(' · '))+'</div><div class="cb"><i style="width:'+(p||0)+'%"></i></div>'+(it.this_work?'<div class="mt" style="margin-top:4px">금주: '+esc(it.this_work)+'</div>':'')+(it.remark?'<div class="mt">특기: '+esc(it.remark)+'</div>':'')+'</div><div class="pct">'+(p==null?'—':p+'%')+'</div></div>';}).join(''):'<div class="empty">진행 중인 공사가 없습니다</div>')+'</div>',false);
   var yr=new Date().getFullYear(),kinds={},ko=[];(d.equip||[]).forEach(function(e){if(!kinds[e.kind]){kinds[e.kind]={q:0,old:null,desc:[]};ko.push(e.kind);}var k=kinds[e.kind];k.q+=e.qty||0;if(e.install_year&&(!k.old||e.install_year<k.old))k.old=e.install_year;var ds=[e.type,e.maker,e.capacity].filter(Boolean).join(' ');if(ds&&k.desc.length<3)k.desc.push(ds);});
-  h+='<section><h2>설비현황 요약 <span class="n">'+(d.equip||[]).reduce(function(a,e){return a+(e.qty||0);},0)+'대</span></h2><div class="bx">'+(ko.length?ko.map(function(k){var x=kinds[k],age=x.old?yr-x.old:null;
-    return '<div class="row"><div class="l"><div class="nm">'+esc(k)+' <span class="muted" style="font-weight:400">'+x.q+'대</span></div><div class="mt">'+esc(x.desc.join(' / '))+'</div></div>'+(age!=null?'<div class="pct" style="font-size:13px;font-weight:500;'+(age>=15?'color:var(--bad)':'color:var(--ink-3)')+'">'+x.old+'년'+(age>=15?' 노후':'')+'</div>':'')+'</div>';}).join(''):'<div class="empty">등록된 설비가 없습니다</div>')+'</div></section>';
+  h+=bfold('equip','설비현황 요약',' <span class="n">'+(d.equip||[]).reduce(function(a,e){return a+(e.qty||0);},0)+'대</span>','<div class="bx">'+(ko.length?ko.map(function(k){var x=kinds[k],age=x.old?yr-x.old:null;
+    return '<div class="row"><div class="l"><div class="nm">'+esc(k)+' <span class="muted" style="font-weight:400">'+x.q+'대</span></div><div class="mt">'+esc(x.desc.join(' / '))+'</div></div>'+(age!=null?'<div class="pct" style="font-size:13px;font-weight:500;'+(age>=15?'color:var(--bad)':'color:var(--ink-3)')+'">'+x.old+'년'+(age>=15?' 노후':'')+'</div>':'')+'</div>';}).join(''):'<div class="empty">등록된 설비가 없습니다</div>')+'</div>',false);
   var H=d.history;
-  h+='<section><h2>기타 이력'+(H?' <span class="n">점검 '+H.n_ins+' · 산재 '+H.n_acc+' · 교육 '+H.n_edu+'</span>'+(H.fetched_at?'<span class="upd">'+esc(kst(H.fetched_at).slice(0,5))+' 기준</span>':''):'')+'</h2>'+(H?briefHist(H):'<div class="bx"><div class="empty">이력을 불러오지 못했습니다. <a href="'+APP+'">앱</a>의 기타 이력 탭에서 확인하세요</div></div>')+'</section>';
+  h+=bfold('hist','기타 이력',(H?' <span class="n">점검 '+H.n_ins+' · 산재 '+H.n_acc+' · 교육 '+H.n_edu+'</span>'+(H.fetched_at?'<span class="upd">'+esc(kst(H.fetched_at).slice(0,5))+' 기준</span>':''):''),(H?briefHist(H):'<div class="bx"><div class="empty">이력을 불러오지 못했습니다. <a href="'+APP+'">앱</a>의 기타 이력 탭에서 확인하세요</div></div>'),false);
   h+='<p class="foot">이 링크는 '+esc(kst(d.expires_at))+'까지 열립니다 · 보기 전용. 방문기록 작성·수정은 <a href="'+APP+'">사업장 관리 앱</a>에서.</p>';
   app.innerHTML=h;window.scrollTo(0,0);
 }
