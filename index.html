@@ -250,6 +250,9 @@ body.reordering .person:not(.dragging){transition:none}
 .brief .cb i{display:block;height:100%;background:var(--accent)}
 .brief .nt{display:flex;gap:8px;padding:10px 12px;background:var(--warn-soft);border-radius:10px;margin-top:8px;font-size:13px}
 .brief .empty{padding:14px}
+.brief .gh{display:flex;justify-content:space-between;padding:6px 14px;font-size:12px;font-weight:600;color:var(--ink-2);background:var(--paper);border-top:1px solid var(--line)}
+.brief .gh:first-child{border-top:0}
+.brief .gh span{font-weight:400;color:var(--ink-3)}
 .brief .tel{flex:none;padding:5px 11px;border-radius:8px;background:var(--accent-soft);color:var(--accent);font-weight:600;font-size:12.5px;text-decoration:none;white-space:nowrap}
 .brief .more{text-align:center;margin-top:8px;font-size:13px}
 .brief .old{color:var(--bad);font-size:12px}
@@ -2069,6 +2072,25 @@ async function briefFromHash(){
 window.addEventListener('hashchange',function(){if(S.me)briefFromHash();});
 
 /* ---------- 도착 브리핑 화면 (한 장짜리 현황) ---------- */
+function hiso(v){var t=String(v==null?'':v).trim(),m=t.match(/^(\d{4})[-.\/](\d{1,2})[-.\/](\d{1,2})/);
+  if(m)return m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2);var ms=Date.parse(t.replace(/\s*\(.*\)\s*$/,''));return isNaN(ms)?t:new Date(ms+9*3600e3).toISOString().slice(0,10);}
+function histPick(d){var k=function(a){return (a||[]).map(function(r){var o={};for(var x in r)o[x]=r[x];o.date=hiso(r.date);return o;}).sort(function(x,y){return x.date<y.date?1:x.date>y.date?-1:0;});};
+  var i=k(d.inspections),a=k(d.accidents),e=k(d.edu);
+  return {fetched_at:d.fetched_at,errors:d.errors||{},inspections:i.slice(0,3),n_ins:i.length,accidents:a.slice(0,3),n_acc:a.length,edu:e.slice(0,3),n_edu:e.length,
+    feedback:d.feedback?{date:hiso(d.feedback.date),total:d.feedback.total,done:d.feedback.done}:null};}
+function briefHist(H){
+  var d8=function(x){x=String(x||'');return /^\d{4}-\d{2}-\d{2}$/.test(x)?x.slice(2).replace(/-/g,'.'):x;};
+  var E=H.errors||{};
+  var gh=function(t,n,err){return '<div class="gh">'+t+'<span>'+(err?'원본 시스템 오류':n+'건')+'</span></div>';};
+  var none=function(t){return '<div class="row"><div class="l"><div class="mt">'+t+'</div></div></div>';};
+  var row=function(date,nm,mt,right){return '<div class="row"><div class="dt" style="width:62px">'+esc(d8(date))+'</div><div class="l"><div class="nm">'+esc(nm)+'</div><div class="mt">'+esc(mt.filter(function(x){return x!=null&&x!=='';}).join(' · '))+'</div></div>'+(right||'')+'</div>';};
+  var h=gh('안전보건점검',H.n_ins,E.safety)+(H.inspections.length?H.inspections.map(function(r){var g=String(r.grade==null?'':r.grade);
+      return row(r.date,r.type||'점검',[(r.score!=null&&r.score!=='')?r.score+'점':'',(r.bad!=null&&r.bad!=='')?'미흡 '+r.bad+'건':'',r.inspector?'점검자 '+r.inspector:''],g?'<div class="pct"'+(/^[AB]/.test(g)?'':' style="color:var(--bad)"')+'>'+esc(g)+'</div>':'');}).join(''):none('점검 기록이 없습니다'));
+  if(H.feedback)h+='<div class="row"><div class="dt" style="width:62px">'+esc(d8(H.feedback.date))+'</div><div class="l"><div class="mt">개선 결과: 미흡 '+esc(H.feedback.total)+'건 중 <b>'+esc(H.feedback.done)+'건 완료</b>'+(Number(H.feedback.total)>Number(H.feedback.done)?' <span class="old">진행 중</span>':'')+'</div></div></div>';
+  h+=gh('산업재해',H.n_acc,E.safety)+(H.accidents.length?H.accidents.map(function(r){return row(r.date,r.type||'산업재해',[r.job,r.category,r.status,r.leaveDays==null||r.leaveDays===''?'':'휴직 '+r.leaveDays+'일']);}).join(''):none('산업재해 기록이 없습니다'));
+  h+=gh('교육',H.n_edu,E.edu)+(H.edu.length?H.edu.map(function(r){return row(r.date,r.course||'교육',[r.kind,(r.attend!=null&&r.target!=null)?'참석 '+r.attend+'/'+r.target:'',r.rating==null||r.rating===''?'':'평점 '+r.rating,r.reported?'보고완료':'미보고']);}).join(''):none('교육 기록이 없습니다'));
+  return '<div class="bx">'+h+'</div>';
+}
 function viewBrief(){
   var b=S.brief,s=b&&byId(S.sites,b.site);if(!s)return '<div class="empty" style="margin:24px">사업장을 찾을 수 없습니다.</div>';
   var ready=S.detailFor===s.id&&S.detail,cst=S.cst[s.id];
@@ -2114,9 +2136,14 @@ function viewBrief(){
   var yr=new Date().getFullYear(),kinds={},ko=[];D.equip.forEach(function(e){if(!kinds[e.kind]){kinds[e.kind]={q:0,old:null,n:0};ko.push(e.kind);}var k=kinds[e.kind];k.q+=e.qty||0;k.n++;if(e.install_year&&(!k.old||e.install_year<k.old))k.old=e.install_year;});
   h+='<section><h2>설비현황 요약 <span class="n">'+D.equip.reduce(function(a,e){return a+(e.qty||0);},0)+'대</span></h2><div class="bx">'+(ko.length?ko.map(function(k){var x=kinds[k],age=x.old?yr-x.old:null;
     return '<div class="row"><div class="l"><div class="nm">'+esc(k)+' <span class="muted" style="font-weight:400">'+x.q+'대</span></div><div class="mt">'+esc(D.equip.filter(function(e){return e.kind===k;}).map(function(e){return [e.type,e.maker,e.capacity].filter(Boolean).join(' ');}).filter(Boolean).slice(0,3).join(' / '))+'</div></div>'+(age!=null?'<div class="pct" style="font-size:13px;font-weight:500;'+(age>=15?'color:var(--bad)':'color:var(--ink-3)')+'">'+x.old+'년'+(age>=15?' 노후':'')+'</div>':'')+'</div>';}).join(''):'<div class="empty">등록된 설비가 없습니다</div>')+'</div></section>';
-  // 최근 특이사항
-  var ns=D.notes.slice(0,5),NT={site:'사업장',contact:'고객사',equipment:'설비',people:'직원',manager:'관리자',staffing:'인원'};
-  h+='<section><h2>최근 특이사항 <span class="n">메모 '+D.notes.length+'건</span></h2><div class="bx">'+(ns.length?ns.map(function(n){return '<div class="row"><div class="dt">'+esc(String(n.note_date||'').slice(5).replace('-','.'))+'</div><div class="l"><div class="mt">'+esc(NT[n.target_type]||n.target_type||'')+'</div><div style="font-size:13.5px;white-space:pre-wrap">'+esc(String(n.body||'').slice(0,200))+'</div></div></div>';}).join(''):'<div class="empty">특이사항 메모가 없습니다</div>')+'</div></section>';
+  // 기타 이력 (안전보건점검·산업재해·교육 — 기존 시스템에서 읽어 옴)
+  var hs=S.hist[s.id],hh='',hn='',hu='';
+  if(!hs){loadHist(s.id,false).then(function(){if(S.view==='brief')render();});hs=S.hist[s.id];}
+  if(!hs||hs.loading)hh='<div class="bx"><div class="loading" style="height:60px">기존 시스템에서 이력을 불러오는 중…</div></div>';
+  else if(hs.error)hh='<div class="bx"><div class="empty">이력을 불러오지 못했습니다: '+esc(hs.error)+'</div></div>';
+  else{var H=histPick(hs.data);hh=briefHist(H)+'<div class="more"><button type="button" class="btn sm" data-act="brief-detail" data-id="'+s.id+'" data-tab="hist">기타 이력 전체 보기</button></div>';
+    hn=' <span class="n">점검 '+H.n_ins+' · 산재 '+H.n_acc+' · 교육 '+H.n_edu+'</span>';hu=H.fetched_at?'<span class="upd">'+esc(dt(H.fetched_at).slice(5,10).replace('-','.'))+' 기준</span>':'';}
+  h+='<section><h2>기타 이력'+hn+hu+'</h2>'+hh+'</section>';
   return '<div class="brief">'+back+head+h+'<p class="muted" style="font-size:12px;margin-top:24px">사업장 관리 앱 · 문자 링크는 받은 뒤 24시간 동안 본인 계정으로만 열립니다.</p></div>';
 }
 
