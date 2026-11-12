@@ -728,7 +728,7 @@ function tabStaff(s,ed){
   var rows=CATS.map(function(c,k){tt[0]+=a[k][0];tt[1]+=a[k][1];if(!a[k][0]&&!a[k][1])return '';var g=a[k][1]-a[k][0];return '<tr><td>'+c+'</td><td class="n num">'+a[k][0]+'</td><td class="n num">'+a[k][1]+'</td><td class="n num" style="color:'+(g<0?'var(--bad)':'var(--ink-3)')+'">'+(g>0?'+'+g:g)+'</td></tr>';}).join('');
   var bd=baseDateOf(s.id);
   var ms=S.managers.filter(function(m){return m.site_id===s.id;}).sort(function(x,y){return (y.active-x.active)||(x.sort-y.sort)||(x.id-y.id);}).map(function(m){var ns=notesOf('manager',m.id);var role=m.role==='직접입력'&&m.role_etc?m.role_etc:m.role;
-    return '<article class="person"'+(ed&&m.active?' data-drag="manager" data-id="'+m.id+'"':'')+(m.active?'':' style="opacity:.6"')+'>'+faceSlot(m,ed)+'<span class="pn"><span class="chip acc">'+esc(role)+'</span>'+esc(m.name)+(m.active?'':' <span class="chip">퇴직·전보</span>')+'</span><span class="pr">'+telBtn('manager',m.id,m.phone)+'</span><span class="pr">'+(m.photo_consent_on?'<span class="chip good">사진 동의 '+esc(m.photo_consent_on)+'</span>':'<span class="chip warn">사진 동의 전</span>')+'</span>'+
+    return '<article class="person"'+(ed&&m.active?' data-drag="manager" data-id="'+m.id+'"':'')+(m.active?'':' style="opacity:.6"')+'>'+faceSlot(m,ed)+'<span class="pn"><span class="chip acc">'+esc(role)+'</span>'+esc(m.name)+(m.active?'':' <span class="chip">퇴직·전보</span>')+'</span><span class="pr">'+telBtn('manager',m.id,m.phone)+'</span>'+
      (ns.length?'<span class="pr" style="grid-column:1/-1;margin-top:6px;border-top:1px solid var(--line);padding-top:6px">'+esc(ns[0].note_date)+' · '+esc(ns[0].body)+(ns.length>1?' <span class="muted">외 '+(ns.length-1)+'건</span>':'')+'</span>':'')+
      (ed?'<span class="pa"><button type="button" class="btn sm" data-act="note-add" data-type="manager" data-id="'+m.id+'">메모</button><button type="button" class="btn sm" data-act="manager-edit" data-id="'+m.id+'">수정</button>'+(ns.length?'<button type="button" class="btn sm" data-act="notes-view" data-type="manager" data-id="'+m.id+'">메모 전체</button>':'')+'</span>':(ns.length?'<span class="pa"><button type="button" class="btn sm" data-act="notes-view" data-type="manager" data-id="'+m.id+'">메모 전체</button></span>':''))+'</article>';}).join('');
   return '<section class="card"><h3>직군별 인원 <span class="muted" style="font-weight:400;font-size:12px">'+(bd?'기준일 '+esc(bd):'자료 없음')+'</span>'+(ed?'<button type="button" class="btn sm r" data-act="staff-edit">인원 수정</button>':'')+'</h3>'+
@@ -1179,14 +1179,11 @@ function managerForm(m){
   var sid=S.siteId,roles=codes('manager_role').map(function(c){return c.label;});if(m&&roles.indexOf(m.role)<0&&m.role!=='직접입력')roles.push(m.role);roles.push('직접입력');
   openForm({title:m?'관리자 수정':'관리자 추가',fields:[[{id:'role',label:'분류',type:'select',value:m?m.role:roles[0],options:roles},{id:'role_etc',label:'직접입력',value:m&&m.role_etc,hidden:!(m&&m.role==='직접입력'),placeholder:'예: 안내팀장'}],
      [{id:'name',label:'성함',required:true,value:m&&m.name},{id:'phone',label:'연락처',type:'tel',inputmode:'tel',value:m&&telFmt(m.phone)}],
-     {id:'consent',label:'얼굴 사진 촬영·보관에 본인이 동의함',type:'check',value:!!(m&&m.photo_consent_on)},
      {id:'active',label:'현재 근무 중',type:'check',value:m?m.active:true}],
     onChange:function(e,val){if(e.target.id==='f_role'){var w=document.querySelector('[data-wrap="role_etc"]');if(w)w.hidden=val.role!=='직접입력';}},
     onDelete:m?async function(){await removePhotosFor('manager_face',m.id);await removeNotesFor('manager',m.id);await q(sb.from('site_managers').delete().eq('id',m.id));await afterSave('관리자를 삭제했습니다',sid);}:null,
     onSave:async function(v){if(v.role==='직접입력'&&!v.role_etc)throw new Error('직접입력 분류를 적어 주세요.');
-      var row={site_id:sid,role:v.role,role_etc:v.role==='직접입력'?v.role_etc:null,name:v.name,phone:v.phone?v.phone.replace(/[^0-9]/g,''):null,active:v.active,
-        photo_consent_on:v.consent?(m&&m.photo_consent_on?m.photo_consent_on:today()):null};
-      if(m&&m.photo_consent_on&&!row.photo_consent_on)await removePhotosFor('manager_face',m.id);
+      var row={site_id:sid,role:v.role,role_etc:v.role==='직접입력'?v.role_etc:null,name:v.name,phone:v.phone?v.phone.replace(/[^0-9]/g,''):null,active:v.active};
       if(m)await q(sb.from('site_managers').update(row).eq('id',m.id));else{row.sort=nextSort(S.managers.filter(function(x){return x.site_id===sid;}));await q(sb.from('site_managers').insert(row));}await afterSave('저장했습니다',sid);}});
 }
 function personForm(p){
@@ -1195,13 +1192,10 @@ function personForm(p){
      [{id:'name',label:'성함',required:true,value:p&&p.name,maxlength:40},{id:'phone',label:'연락처',type:'tel',inputmode:'tel',value:p&&telFmt(p.phone)}],
      {id:'memo',label:'특징·메모',type:'textarea',rows:3,value:p&&p.memo,placeholder:'근무 구역, 경력, 특기사항 등'}];
   if(!p)fields.push({id:'first',label:'오늘 나눈 이야기 (선택)',type:'textarea',rows:3,placeholder:'적으면 오늘 날짜의 만남·대화 이력으로 함께 저장됩니다'});
-  fields.push({id:'consent',label:'얼굴 사진 촬영·보관에 본인이 동의함',type:'check',value:!!(p&&p.photo_consent_on)});
   fields.push({id:'active',label:'현재 근무 중',type:'check',value:p?p.active:true});
   openForm({title:p?'직원 수정':'직원 추가',fields:fields,
     onDelete:p?async function(){await removePhotosFor('person_face',p.id);await removeNotesFor('person',p.id);await q(sb.from('site_people').delete().eq('id',p.id));await afterSave('직원을 삭제했습니다',sid);}:null,
-    onSave:async function(v){var row={site_id:sid,job:v.job||null,title:v.title||null,name:v.name,phone:v.phone?v.phone.replace(/[^0-9]/g,''):null,memo:v.memo||null,active:v.active,
-        photo_consent_on:v.consent?(p&&p.photo_consent_on?p.photo_consent_on:today()):null};
-      if(p&&p.photo_consent_on&&!row.photo_consent_on)await removePhotosFor('person_face',p.id);
+    onSave:async function(v){var row={site_id:sid,job:v.job||null,title:v.title||null,name:v.name,phone:v.phone?v.phone.replace(/[^0-9]/g,''):null,memo:v.memo||null,active:v.active};
       if(p)await q(sb.from('site_people').update(row).eq('id',p.id));
       else{row.sort=nextSort(S.detail.people||[]);var ins=await q(sb.from('site_people').insert(row).select().single());
         if(v.first)await q(sb.from('site_notes').insert({site_id:sid,target_type:'person',target_id:ins.id,note_date:today(),body:v.first}));}
@@ -1446,8 +1440,8 @@ function photoStrip(type,id,ed,emptyText){var list=photosOf(type,id);
   return '<div class="pstrip">'+list.map(thumb).join('')+(ed?addTile(type,id):'')+'</div>';}
 function faceSlot(m,ed,type){type=type||'manager_face';var f=photosOf(type,m.id)[0];
   if(f)return '<button type="button" class="photo face" data-act="photo-view" data-id="'+f.id+'" aria-label="얼굴 사진 보기">'+(S.purl[f.path]?'<img alt="" src="'+esc(S.purl[f.path])+'">':'')+'</button>';
-  if(ed&&m.photo_consent_on)return '<label class="photo face add" title="얼굴 사진 올리기">+ 사진<input type="file" accept="image/*" hidden data-ptype="'+type+'" data-pid="'+m.id+'"></label>';
-  return '<span class="photo">'+(m.photo_consent_on?'사진 없음':'동의 전')+'</span>';}
+  if(ed)return '<label class="photo face add" title="얼굴 사진 올리기">+ 사진<input type="file" accept="image/*" hidden data-ptype="'+type+'" data-pid="'+m.id+'"></label>';
+  return '<span class="photo">사진 없음</span>';}
 function shrink(file,max,qual){return new Promise(function(res,rej){
   var done=function(src,w,h,rel){var k=Math.min(1,(max||1600)/Math.max(w,h));var c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);
     c.getContext('2d').drawImage(src,0,0,c.width,c.height);if(rel)rel();c.toBlob(function(b){b?res(b):rej(new Error('사진을 변환하지 못했습니다'));},'image/jpeg',qual||0.82);};
