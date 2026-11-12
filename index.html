@@ -167,6 +167,12 @@ td.n,th.n{text-align:right}
 .person .photo{width:56px;height:56px;grid-row:1/5}
 .person .pn{font-weight:600;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .person .pr{font-size:12.5px;color:var(--ink-2)}
+.person[data-drag]{cursor:grab;-webkit-touch-callout:none}
+.person[data-drag] img{-webkit-user-drag:none}
+.person.dragging{cursor:grabbing;border-style:dashed;border-color:var(--accent);box-shadow:0 6px 18px rgba(0,0,0,.16);opacity:.85}
+body.reordering{cursor:grabbing;user-select:none;-webkit-user-select:none}
+body.reordering .person:not(.dragging){transition:none}
+.draghint{font-weight:400;font-size:12px}
 .tl{display:grid;gap:0}
 .tli{display:grid;grid-template-columns:86px 1fr;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
 .tli:last-child{border-bottom:0}
@@ -710,24 +716,24 @@ function tabStaff(s,ed){
   var rows=CATS.map(function(c,k){tt[0]+=a[k][0];tt[1]+=a[k][1];if(!a[k][0]&&!a[k][1])return '';var g=a[k][1]-a[k][0];return '<tr><td>'+c+'</td><td class="n num">'+a[k][0]+'</td><td class="n num">'+a[k][1]+'</td><td class="n num" style="color:'+(g<0?'var(--bad)':'var(--ink-3)')+'">'+(g>0?'+'+g:g)+'</td></tr>';}).join('');
   var bd=baseDateOf(s.id);
   var ms=S.managers.filter(function(m){return m.site_id===s.id;}).sort(function(x,y){return (y.active-x.active)||(x.sort-y.sort)||(x.id-y.id);}).map(function(m){var ns=notesOf('manager',m.id);var role=m.role==='직접입력'&&m.role_etc?m.role_etc:m.role;
-    return '<article class="person"'+(m.active?'':' style="opacity:.6"')+'>'+faceSlot(m,ed)+'<span class="pn"><span class="chip acc">'+esc(role)+'</span>'+esc(m.name)+(m.active?'':' <span class="chip">퇴직·전보</span>')+'</span><span class="pr">'+telBtn('manager',m.id,m.phone)+'</span><span class="pr">'+(m.photo_consent_on?'<span class="chip good">사진 동의 '+esc(m.photo_consent_on)+'</span>':'<span class="chip warn">사진 동의 전</span>')+'</span>'+
+    return '<article class="person"'+(ed&&m.active?' data-drag="manager" data-id="'+m.id+'"':'')+(m.active?'':' style="opacity:.6"')+'>'+faceSlot(m,ed)+'<span class="pn"><span class="chip acc">'+esc(role)+'</span>'+esc(m.name)+(m.active?'':' <span class="chip">퇴직·전보</span>')+'</span><span class="pr">'+telBtn('manager',m.id,m.phone)+'</span><span class="pr">'+(m.photo_consent_on?'<span class="chip good">사진 동의 '+esc(m.photo_consent_on)+'</span>':'<span class="chip warn">사진 동의 전</span>')+'</span>'+
      (ns.length?'<span class="pr" style="grid-column:1/-1;margin-top:6px;border-top:1px solid var(--line);padding-top:6px">'+esc(ns[0].note_date)+' · '+esc(ns[0].body)+(ns.length>1?' <span class="muted">외 '+(ns.length-1)+'건</span>':'')+'</span>':'')+
      (ed?'<span class="pa"><button type="button" class="btn sm" data-act="note-add" data-type="manager" data-id="'+m.id+'">메모</button><button type="button" class="btn sm" data-act="manager-edit" data-id="'+m.id+'">수정</button>'+(ns.length?'<button type="button" class="btn sm" data-act="notes-view" data-type="manager" data-id="'+m.id+'">메모 전체</button>':'')+'</span>':(ns.length?'<span class="pa"><button type="button" class="btn sm" data-act="notes-view" data-type="manager" data-id="'+m.id+'">메모 전체</button></span>':''))+'</article>';}).join('');
   return '<section class="card"><h3>직군별 인원 <span class="muted" style="font-weight:400;font-size:12px">'+(bd?'기준일 '+esc(bd):'자료 없음')+'</span>'+(ed?'<button type="button" class="btn sm r" data-act="staff-edit">인원 수정</button>':'')+'</h3>'+
    (multi?'<div class="zone">'+['전체'].concat(zones).map(function(z){return '<button type="button" class="fchip" data-zone="'+esc(z)+'" aria-pressed="'+(S.zone===z)+'">'+esc(z||'구역 없음')+'</button>';}).join('')+'</div>':'')+
    '<div class="tbl-wrap"><table><thead><tr><th>직군</th><th class="n">정원</th><th class="n">현원</th><th class="n">과부족</th></tr></thead><tbody>'+(rows||'<tr><td colspan="4" class="muted">인원 자료가 없습니다.</td></tr>')+'<tr><td><b>계</b></td><td class="n num"><b>'+tt[0]+'</b></td><td class="n num"><b>'+tt[1]+'</b></td><td class="n num" style="color:'+(tt[1]<tt[0]?'var(--bad)':'var(--ink-3)')+'"><b>'+(tt[1]-tt[0])+'</b></td></tr></tbody></table></div></section>'+
-   '<div class="ph"><h3 style="font-size:14px">관리자</h3>'+(ed?'<button type="button" class="btn sm" data-act="manager-add">'+I.plus+'관리자 추가</button>':'')+'</div>'+
+   '<div class="ph"><h3 style="font-size:14px">관리자'+(ed&&ms?' <span class="muted draghint">카드를 끌어 순서 변경</span>':'')+'</h3>'+(ed?'<button type="button" class="btn sm" data-act="manager-add">'+I.plus+'관리자 추가</button>':'')+'</div>'+
    (ms?'<div class="people">'+ms+'</div>':'<div class="empty">등록된 관리자가 없습니다.</div>')+peopleSection(s,ed);
 }
 function peopleSection(s,ed){
   var list=(S.detail.people||[]).slice().sort(function(x,y){return (y.active-x.active)||(x.sort-y.sort)||(x.id-y.id);});
   var cards=list.map(function(p){var ns=notesOf('person',p.id),last=ns[0];
-    return '<article class="person"'+(p.active?'':' style="opacity:.6"')+'>'+faceSlot(p,ed,'person_face')+'<span class="pn">'+(p.job?'<span class="chip">'+esc(p.job)+'</span>':'')+esc(p.name)+(p.title?' <span class="muted" style="font-weight:400">'+esc(p.title)+'</span>':'')+(p.active?'':' <span class="chip">퇴직·전보</span>')+'</span>'+
+    return '<article class="person"'+(ed&&p.active?' data-drag="person" data-id="'+p.id+'"':'')+(p.active?'':' style="opacity:.6"')+'>'+faceSlot(p,ed,'person_face')+'<span class="pn">'+(p.job?'<span class="chip">'+esc(p.job)+'</span>':'')+esc(p.name)+(p.title?' <span class="muted" style="font-weight:400">'+esc(p.title)+'</span>':'')+(p.active?'':' <span class="chip">퇴직·전보</span>')+'</span>'+
      '<span class="pr">'+telBtn('person',p.id,p.phone)+'</span><span class="pr">'+(ns.length?'<span class="chip acc">만남·대화 '+ns.length+'건</span> <span class="muted">최근 '+esc(last.note_date)+'</span>':'<span class="chip">이력 없음</span>')+'</span>'+
      (p.memo?'<span class="pr" style="grid-column:1/-1;white-space:pre-wrap">'+esc(p.memo)+'</span>':'')+
      (last?'<span class="pr" style="grid-column:1/-1;margin-top:6px;border-top:1px solid var(--line);padding-top:6px;white-space:pre-wrap">'+esc(last.body)+'</span>':'')+
      '<span class="pa">'+(ed?'<button type="button" class="btn sm" data-act="note-add" data-type="person" data-id="'+p.id+'">'+I.plus+'이력</button><button type="button" class="btn sm" data-act="person-edit" data-id="'+p.id+'">수정</button>':'')+(ns.length?'<button type="button" class="btn sm" data-act="notes-view" data-type="person" data-id="'+p.id+'">이력 전체</button>':'')+'</span></article>';}).join('');
-  return '<div class="ph" style="margin-top:18px"><h3 style="font-size:14px">직원 <span class="muted" style="font-weight:400;font-size:12px">만나거나 이야기 나눈 직원 · '+list.filter(function(p){return p.active;}).length+'명</span></h3>'+(ed?'<button type="button" class="btn sm" data-act="person-add">'+I.plus+'직원 추가</button>':'')+'</div>'+
+  return '<div class="ph" style="margin-top:18px"><h3 style="font-size:14px">직원 <span class="muted" style="font-weight:400;font-size:12px">만나거나 이야기 나눈 직원 · '+list.filter(function(p){return p.active;}).length+'명'+(ed&&cards?' · 카드를 끌어 순서 변경':'')+'</span></h3>'+(ed?'<button type="button" class="btn sm" data-act="person-add">'+I.plus+'직원 추가</button>':'')+'</div>'+
    (cards?'<div class="people">'+cards+'</div>':'<div class="empty">등록된 직원이 없습니다.'+(ed?' 현장에서 만난 직원을 추가하고 나눈 이야기를 이력으로 남기세요.':'')+'</div>');
 }
 function tabEquip(s,ed){
@@ -1169,7 +1175,7 @@ function managerForm(m){
       var row={site_id:sid,role:v.role,role_etc:v.role==='직접입력'?v.role_etc:null,name:v.name,phone:v.phone?v.phone.replace(/[^0-9]/g,''):null,active:v.active,
         photo_consent_on:v.consent?(m&&m.photo_consent_on?m.photo_consent_on:today()):null};
       if(m&&m.photo_consent_on&&!row.photo_consent_on)await removePhotosFor('manager_face',m.id);
-      if(m)await q(sb.from('site_managers').update(row).eq('id',m.id));else await q(sb.from('site_managers').insert(row));await afterSave('저장했습니다',sid);}});
+      if(m)await q(sb.from('site_managers').update(row).eq('id',m.id));else{row.sort=nextSort(S.managers.filter(function(x){return x.site_id===sid;}));await q(sb.from('site_managers').insert(row));}await afterSave('저장했습니다',sid);}});
 }
 function personForm(p){
   var sid=S.siteId;
@@ -1185,7 +1191,7 @@ function personForm(p){
         photo_consent_on:v.consent?(p&&p.photo_consent_on?p.photo_consent_on:today()):null};
       if(p&&p.photo_consent_on&&!row.photo_consent_on)await removePhotosFor('person_face',p.id);
       if(p)await q(sb.from('site_people').update(row).eq('id',p.id));
-      else{var ins=await q(sb.from('site_people').insert(row).select().single());
+      else{row.sort=nextSort(S.detail.people||[]);var ins=await q(sb.from('site_people').insert(row).select().single());
         if(v.first)await q(sb.from('site_notes').insert({site_id:sid,target_type:'person',target_id:ins.id,note_date:today(),body:v.first}));}
       await afterSave(p?'직원 정보를 저장했습니다':'직원을 추가했습니다',sid);}});
 }
@@ -1832,6 +1838,64 @@ async function doInstall(){if(!S.installEvt)return;S.installEvt.prompt();try{awa
 if('serviceWorker' in navigator&&location.protocol==='https:'){window.addEventListener('load',function(){navigator.serviceWorker.register('./sw.js').catch(function(){});});}
 
 /* ---------- 이벤트 ---------- */
+
+/* ── 관리자·직원 카드 끌어서 순서 변경 ──
+   마우스: 카드를 누른 채 조금 움직이면 시작 / 터치: 0.35초 길게 누른 뒤 끌기
+   같은 묶음(관리자끼리, 직원끼리) 안에서만 옮겨지고, 놓으면 sort 값으로 저장 */
+function nextSort(list){return list.reduce(function(a,x){return Math.max(a,x.sort||0);},0)+1;}
+var DG=null;
+function dragEnd(save){
+  var d=DG;if(!d)return;DG=null;clearTimeout(d.timer);document.body.classList.remove('reordering');d.el.classList.remove('dragging');
+  if(!d.on)return;
+  var stop=function(e){e.stopPropagation();e.preventDefault();};   /* 끌고 난 직후의 클릭은 버튼 동작으로 넘기지 않음 */
+  document.addEventListener('click',stop,true);setTimeout(function(){document.removeEventListener('click',stop,true);},60);
+  var ids=[].map.call(d.box.querySelectorAll('.person[data-drag]'),function(c){return +c.dataset.id;});
+  if(!save||ids.join()===d.before){if(!save)redrawDetail();return;}
+  saveOrder(d.kind,ids,d.siteId);
+}
+async function saveOrder(kind,ids,siteId){
+  var tbl=kind==='manager'?'site_managers':'site_people',list=kind==='manager'?S.managers:(S.detail&&S.detail.people)||[],ups=[];
+  ids.forEach(function(id,i){var r=byId(list,id);if(r&&r.sort!==i+1){r.sort=i+1;ups.push(q(sb.from(tbl).update({sort:i+1}).eq('id',id)));}});
+  if(!ups.length)return;
+  try{await Promise.all(ups);toast('순서를 저장했습니다',1600);}
+  catch(x){toast('순서를 저장하지 못했습니다 — '+errMsg(x));try{await refreshSite(siteId);}catch(e){}redrawDetail();}
+}
+function redrawDetail(){var d=document.getElementById('detail');if(d&&S.view==='sites'){var sc=d.scrollTop;d.innerHTML=viewDetail();d.scrollTop=sc;}}
+function dragMove(x,y){
+  var d=DG,t=document.elementFromPoint(x,y);t=t&&t.closest?t.closest('.person[data-drag]'):null;
+  if(!t||t===d.el||t.parentNode!==d.box||t.dataset.drag!==d.kind)return;
+  var cs=[].slice.call(d.box.children);
+  /* 카드 크기가 달라 자리를 바꾼 직후 되돌아가는 떨림 방지: 옮긴 뒤에도 포인터가 그 카드 위에 있으면 건너뜀 */
+  if(d.last===t&&Date.now()-d.lastAt<180)return;
+  if(cs.indexOf(d.el)<cs.indexOf(t))d.box.insertBefore(d.el,t.nextSibling);else d.box.insertBefore(d.el,t);
+  d.last=t;d.lastAt=Date.now();
+}
+app.addEventListener('pointerdown',function(e){
+  if(DG||(e.pointerType==='mouse'&&e.button!==0))return;
+  var el=e.target.closest&&e.target.closest('.person[data-drag]');
+  if(!el||e.target.closest('button,a,label,input,select,textarea'))return;
+  if(el.parentNode.querySelectorAll('.person[data-drag]').length<2)return;
+  DG={el:el,box:el.parentNode,kind:el.dataset.drag,siteId:S.siteId,pid:e.pointerId,x:e.clientX,y:e.clientY,on:false,touch:e.pointerType!=='mouse',
+    before:[].map.call(el.parentNode.querySelectorAll('.person[data-drag]'),function(c){return c.dataset.id;}).join()};
+  if(DG.touch)DG.timer=setTimeout(function(){if(DG&&!DG.on)dragStart();},350);
+});
+function dragStart(){DG.on=true;DG.el.classList.add('dragging');document.body.classList.add('reordering');var g=window.getSelection&&window.getSelection();if(g&&g.removeAllRanges)g.removeAllRanges();
+  if(DG.touch&&navigator.vibrate)try{navigator.vibrate(15);}catch(e){}}
+document.addEventListener('pointermove',function(e){
+  var d=DG;if(!d||e.pointerId!==d.pid)return;
+  if(!d.on){var far=Math.abs(e.clientX-d.x)+Math.abs(e.clientY-d.y)>8;
+    if(d.touch){if(far)dragEnd(false);return;}   /* 길게 누르기 전에 움직이면 화면 넘기기로 봄 */
+    if(!far)return;dragStart();}
+  e.preventDefault();dragMove(e.clientX,e.clientY);
+  /* 화면 위·아래 끝에서는 자동으로 넘김 */
+  var sc=document.getElementById('detail');if(sc){var r=sc.getBoundingClientRect();if(e.clientY<r.top+50)sc.scrollTop-=14;else if(e.clientY>r.bottom-50)sc.scrollTop+=14;}
+});
+document.addEventListener('pointerup',function(e){if(DG&&e.pointerId===DG.pid)dragEnd(true);});
+document.addEventListener('pointercancel',function(e){if(DG&&e.pointerId===DG.pid)dragEnd(DG.on&&DG.touch);});
+document.addEventListener('touchmove',function(e){if(DG&&DG.on&&e.cancelable)e.preventDefault();},{passive:false});
+document.addEventListener('contextmenu',function(e){if(DG&&DG.touch)e.preventDefault();});
+app.addEventListener('dragstart',function(e){if(e.target.closest&&e.target.closest('.person[data-drag]'))e.preventDefault();});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&DG&&DG.on)dragEnd(false);});
 app.addEventListener('click',async function(e){
   var el=e.target.closest('button,[data-go]');if(!el||!app.contains(el))return;
   if(el.closest('#modal')&&!el.dataset.act&&!el.dataset.tel)return;
