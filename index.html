@@ -387,7 +387,7 @@ var SB_KEY='sb_publishable_RHDgmlGV-m946etnPHfXaw_vy2u8uCp';
 var DOMAIN='sites.chm.local';
 var VERSION='9단계 · 2026-11-04';
 var GEO_RADIUS=250; // 현재 위치에서 이 거리(m) 안에 있는 사업장을 '도착'으로 봄
-var IDLE_MIN=30;
+var KEEP_DAYS=7; // 같은 기기에서 한 번 로그인하면 이 기간 동안 앱을 껐다 켜도 로그인 유지
 var CATS=['관리','사무지원','시설','보안','CS','미화'];
 var EQ_TYPES={'냉동기':['터보','흡수식','스크류','히트펌프','기타'],'발전기':['비상용(디젤)','비상용(가스터빈)','상용','기타'],'보일러':['관류','노통연관','온수','전기','기타'],'냉각탑':['개방형','밀폐형','기타'],'AHU':['정풍량(CAV)','변풍량(VAV)','외기처리(OAU)','항온항습기','기타'],'FCU':['천장 매립형','천장 카세트형','바닥 노출형','기타'],'정화조실':['오수처리시설','정화조(부패탱크)','기타']};
 var EQ_EXTRA={'냉동기':'냉매','발전기':'연료','보일러':'연료','냉각탑':'흐름방식','AHU':'담당구역','FCU':'설치구역','정화조실':'처리방식'};
@@ -449,7 +449,7 @@ function showLogin(msg){
    '<label class="field"><span>아이디</span><input id="lid" autocomplete="username" autocapitalize="off" spellcheck="false" required></label>'+
    '<label class="field"><span>비밀번호</span><input id="lpw" type="password" autocomplete="current-password" required></label>'+
    '<div class="err" id="lerr">'+esc(msg||'')+'</div><button class="btn pri" id="lbtn" style="justify-content:center">로그인</button>'+
-   '<div class="lnote"><span>5회 틀리면 15분 동안 로그인할 수 없습니다 · 30분 쓰지 않으면 자동 로그아웃</span><span>비밀번호를 잊으면 관리자에게 재설정을 요청하세요.</span><span class="muted">'+VERSION+'</span></div></form>');
+   '<div class="lnote"><span>5회 틀리면 15분 동안 로그인할 수 없습니다 · 한 번 로그인하면 이 기기에서 1주일 유지</span><span>비밀번호를 잊으면 관리자에게 재설정을 요청하세요.</span><span class="muted">'+VERSION+'</span></div></form>');
   var f=document.getElementById('fLogin');document.getElementById('lid').focus();
   f.addEventListener('submit',async function(e){e.preventDefault();
     var id=document.getElementById('lid').value.trim().toLowerCase(),pw=document.getElementById('lpw').value,er=document.getElementById('lerr'),bt=document.getElementById('lbtn');
@@ -462,12 +462,14 @@ function showLogin(msg){
     var ss=await sb.auth.setSession({access_token:j.access_token,refresh_token:j.refresh_token});
     if(ss.error){er.textContent=errMsg(ss.error);bt.disabled=false;bt.textContent='로그인';return;}
     try{sessionStorage.removeItem('chm-sites-rec');}catch(x){}
+    try{localStorage.setItem(KEEP_KEY,String(Date.now()));}catch(x){}
     afterSignIn();});
 }
 
 async function afterSignIn(){
   S.me=null;stopIdle(); // 인증이 끝나기 전에는 어떤 경로로도 본 화면이 뜨지 않게
   app.innerHTML='<div class="loading">불러오는 중…</div>';
+  if(keepExpired()){logout(KEEP_MSG);return;}
   try{
     var me=await q(sb.rpc('site_me'));
     if(!me){await sb.auth.signOut();showLogin('이 앱을 쓸 수 있는 계정이 아닙니다. 관리자에게 문의하세요.');return;}
@@ -550,14 +552,16 @@ function bindOtp(factorId){
 }
 async function logout(msg){stopIdle();try{await sb.auth.signOut();}catch(e){}
   try{sessionStorage.removeItem('chm-sites-rec');}catch(e){}
+  try{localStorage.removeItem(KEEP_KEY);}catch(e){}
   S.me=null;S.detail=null;S.audit=null;S.sites=[];S.staff=[];S.visits=[];S.members=[];S.managers=[];
   showLogin(typeof msg==='string'?msg:'');}
 
-/* 30분 미사용 자동 로그아웃 */
-var lastAct=Date.now(),idleT=null;
-function mark(){lastAct=Date.now();}
-function startIdle(){stopIdle();['click','keydown','touchstart','scroll'].forEach(function(ev){document.addEventListener(ev,mark,{passive:true,capture:true});});
-  idleT=setInterval(function(){if(Date.now()-lastAct>IDLE_MIN*60e3)logout('30분 동안 사용하지 않아 로그아웃되었습니다.');},30e3);}
+/* 로그인 유지: 비밀번호로 로그인한 때부터 1주일. 지나면 다시 로그인 (미사용 자동 로그아웃은 없음) */
+var KEEP_KEY='chm-sites-login-at',KEEP_MSG='로그인한 지 1주일이 지나 다시 로그인이 필요합니다.',idleT=null;
+function keepExpired(){var t=0;try{t=Number(localStorage.getItem(KEEP_KEY))||0;}catch(e){return false;}
+  if(!t||t>Date.now()){try{localStorage.setItem(KEEP_KEY,String(Date.now()));}catch(e){}return false;} // 기록이 없으면(이전 버전 로그인) 지금부터 계산
+  return Date.now()-t>KEEP_DAYS*864e5;}
+function startIdle(){stopIdle();idleT=setInterval(function(){if(S.me&&keepExpired())logout(KEEP_MSG);},60e3);}
 function stopIdle(){if(idleT)clearInterval(idleT);idleT=null;}
 
 /* ---------- 데이터 ---------- */
@@ -2201,7 +2205,7 @@ function setArrive(){
     '<p class="muted" style="font-size:12.5px">사업장 250m 안에서 앱을 열면 기록됩니다. 문자는 각자 내 계정 › 도착 알림 설정에서 켜고 끕니다. 링크는 24시간 동안 받은 본인만 열 수 있습니다.</p>'+
     '<div class="tbl-wrap"><table><thead><tr><th>시각</th><th>이름</th><th>사업장</th><th class="n">거리</th><th>문자</th><th>번호</th><th>비고</th><th>링크 열람</th></tr></thead><tbody>'+(rows||'<tr><td colspan="8" class="muted">아직 도착 기록이 없습니다</td></tr>')+'</tbody></table></div></section>';
 }
-async function onReturn(){if(!S.me)return;if(!(await ensureAal()))return;geoAuto();
+async function onReturn(){if(!S.me)return;if(keepExpired()){logout(KEEP_MSG);return;}if(!(await ensureAal()))return;geoAuto();
   if(S.view==='dash'&&Date.now()-(S.lastLoad||0)>300e3){S.lastLoad=Date.now();loadAll().then(function(){if(S.me){S.keepScroll=true;render();}}).catch(function(){});}}
 window.addEventListener('focus',onReturn);
 document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')onReturn();});
