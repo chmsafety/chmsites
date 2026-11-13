@@ -592,7 +592,7 @@ function activeSites(){return S.sites.filter(function(s){return s.status==='운�
 function coVisits(){var ids={};activeSites().forEach(function(s){ids[s.id]=1;});return S.visits.filter(function(v){return ids[v.site_id];});}
 function coTabs(){return '<div class="coseg" role="group" aria-label="회사 선택">'+COMPANIES.map(function(c){return '<button type="button" data-co="'+c+'" class="co-'+c.toLowerCase()+'" aria-pressed="'+(S.company===c)+'">'+c+'</button>';}).join('')+'</div>';}
 function setCompany(c){if(COMPANIES.indexOf(c)<0||S.company===c)return;S.company=c;try{localStorage.setItem('chm-sites-company',c);}catch(e){}
-  var f=activeSites()[0];S.siteId=f?f.id:null;S.detailFor=null;S.detail=null;S.open=false;S.imp=null;S.histNames=null;S.zone='전체';S.client='전체';S.cimp=null;S.creports=null;render();var mn=document.getElementById('main');if(mn)mn.scrollTop=0;}
+  var f=activeSites()[0];S.siteId=f?f.id:null;S.detailFor=null;S.detail=null;S.open=false;S.imp=null;S.histNames=null;S.zone='전체';S.client='전체';S.cimp=null;S.fimp=null;S.creports=null;render();var mn=document.getElementById('main');if(mn)mn.scrollTop=0;}
 function latestRows(siteId){var rows=S.staff.filter(function(r){return r.site_id===siteId;});if(!rows.length)return[];
   var mx=rows.reduce(function(m,r){return r.base_date>m?r.base_date:m;},'');return rows.filter(function(r){return r.base_date===mx;});}
 function staffOf(siteId,zone){var t=CATS.map(function(){return[0,0];});latestRows(siteId).forEach(function(r){if(zone&&zone!=='전체'&&r.zone!==zone)return;var k=CATS.indexOf(r.job);if(k>=0){t[k][0]=Math.round((t[k][0]+Number(r.quota))*10)/10;t[k][1]=Math.round((t[k][1]+Number(r.current))*10)/10;}});return t;}
@@ -838,10 +838,10 @@ function viewVisits(){
 }
 
 /* ---------- 설정 ---------- */
-var ACTION_LABEL={insert:'추가',update:'수정',delete:'삭제',login:'로그인',view_phone:'연락처 열람',account_create:'계정 발급',account_reset_password:'비밀번호 재설정',account_activate:'계정 재사용',account_deactivate:'계정 중지',account_update:'계정 수정',account_reset_mfa:'OTP 초기화'};
+var ACTION_LABEL={insert:'추가',update:'수정',delete:'삭제',login:'로그인',view_phone:'연락처 열람',account_create:'계정 발급',account_reset_password:'비밀번호 재설정',account_activate:'계정 재사용',account_deactivate:'계정 중지',account_update:'계정 수정',account_reset_mfa:'OTP 초기화',import:'엑셀 일괄 등록'};
 var TBL_LABEL={site_sites:'사업장',site_contacts:'고객사 담당자',site_visits:'방문기록',site_managers:'관리자',site_staffing:'인원',site_equipment:'설비',site_notes:'메모',site_photos:'사진',site_members:'계정',site_assign:'담당 지정',site_clients:'고객사',site_codes:'선택목록',site_people:'직원',site_floors:'층별현황',site_const_reports:'공사 주간자료'};
 function viewSet(){
-  var tabs=[['acct','계정'],['assign','담당 사업장'],['sites','사업장·고객사'],['xlsx','인원 엑셀'],['const','공사현황'],['codes','선택목록'],['link','이력 연동'],['arrive','도착 알림'],['audit','감사 로그']];
+  var tabs=[['acct','계정'],['assign','담당 사업장'],['sites','사업장·고객사'],['xlsx','인원 엑셀'],['const','공사현황'],['floors','층별 엑셀'],['codes','선택목록'],['link','이력 연동'],['arrive','도착 알림'],['audit','감사 로그']];
   var b='';
   if(S.stab==='acct'){
     if(!S.locks){S.locks={};sb.rpc('site_locked_accounts').then(function(r){(r.data||[]).forEach(function(x){S.locks[x.login_id]=x;});if(S.view==='set'&&S.stab==='acct'){S.keepScroll=true;render();}});}
@@ -864,6 +864,8 @@ function viewSet(){
     b=viewImp();
   } else if(S.stab==='const'){
     b=viewCimp();
+  } else if(S.stab==='floors'){
+    b=viewFimp();
 } else if(S.stab==='arrive'){
   b=setArrive();
 } else if(S.stab==='link'){
@@ -876,7 +878,7 @@ function viewSet(){
     else b='<section class="card"><h3>감사 로그 <span class="muted" style="font-weight:400;font-size:12px">최근 300건 · 추가·수정·삭제·연락처 열람·로그인 자동 기록 · 지울 수 없음</span><button type="button" class="btn sm r" data-act="audit-reload">새로고침</button></h3><div class="tbl-wrap"><table><thead><tr><th>일시</th><th>사용자</th><th>동작</th><th>대상</th><th>사업장</th><th>내용</th></tr></thead><tbody>'+
       S.audit.map(function(r){var s=r.site_id?byId(S.sites,r.site_id):null;return '<tr><td class="num muted">'+dt(r.at)+'</td><td>'+esc(r.login_id||'시스템')+'</td><td><span class="chip">'+esc(ACTION_LABEL[r.action]||r.action)+'</span></td><td>'+esc(TBL_LABEL[r.tbl]||r.tbl||'')+'</td><td>'+esc(s?s.name:'')+'</td><td class="muted" style="white-space:normal;max-width:360px">'+esc(auditSummary(r))+'</td></tr>';}).join('')+'</tbody></table></div></section>';
   }
-  return '<div class="page">'+(['assign','sites','xlsx','const','link'].indexOf(S.stab)>=0?coTabs():'')+'<div class="ph"><div><h1>설정</h1><p>관리자 전용'+(['assign','sites','xlsx','const','link'].indexOf(S.stab)>=0?' · '+esc(S.company)+' 사업장':'')+'</p></div></div><div class="stabs">'+tabs.map(function(t){return '<button type="button" data-stab="'+t[0]+'" aria-pressed="'+(S.stab===t[0])+'">'+t[1]+'</button>';}).join('')+'</div>'+b+'</div>';
+  return '<div class="page">'+(['assign','sites','xlsx','const','floors','link'].indexOf(S.stab)>=0?coTabs():'')+'<div class="ph"><div><h1>설정</h1><p>관리자 전용'+(['assign','sites','xlsx','const','floors','link'].indexOf(S.stab)>=0?' · '+esc(S.company)+' 사업장':'')+'</p></div></div><div class="stabs">'+tabs.map(function(t){return '<button type="button" data-stab="'+t[0]+'" aria-pressed="'+(S.stab===t[0])+'">'+t[1]+'</button>';}).join('')+'</div>'+b+'</div>';
 }
 var SKIP_KEYS=['id','site_id','created_at','created_by','updated_at','updated_by','sort'];
 function auditSummary(r){
@@ -911,7 +913,7 @@ async function unzipXlsx(buf){
 function xdoc(t){var d=new DOMParser().parseFromString(t||'<x/>','application/xml');if(d.getElementsByTagName('parsererror').length)throw new Error('엑셀 내용을 읽지 못했습니다');return d;}
 function xtags(n,t){return [].slice.call(n.getElementsByTagNameNS('*',t));}
 function xcol(ref){var m=/^([A-Z]+)/.exec(ref||'');if(!m)return -1;var c=0;for(var i=0;i<m[1].length;i++)c=c*26+(m[1].charCodeAt(i)-64);return c-1;}
-async function readXlsx(file){
+async function readXlsx(file,maxSheets){
   if(!/\.xlsx$/i.test(file.name))throw new Error('xlsx 형식의 엑셀 파일을 골라 주세요 (xls는 엑셀에서 xlsx로 다시 저장)');
   if(file.size>10*1024*1024)throw new Error('파일이 너무 큽니다 (10MB 이하)');
   var get=await unzipXlsx(await file.arrayBuffer());
@@ -920,7 +922,7 @@ async function readXlsx(file){
   var ss=[],sst=await get('xl/sharedStrings.xml');
   if(sst)xtags(xdoc(sst),'si').forEach(function(si){ss.push(xtags(si,'t').filter(function(t){return t.parentNode.localName!=='rPh';}).map(function(t){return t.textContent;}).join(''));});
   var out=[],sheets=xtags(wb,'sheet');
-  for(var i=0;i<sheets.length&&i<30;i++){
+  for(var i=0;i<sheets.length&&i<(maxSheets||30);i++){
     var sh=sheets[i],rid=sh.getAttribute('r:id')||sh.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id'),tg=rmap[rid];if(!tg)continue;
     var path=tg.charAt(0)==='/'?tg.slice(1):'xl/'+tg.replace(/^\.\//,'');
     var doc=xdoc(await get(path)),rows=[];
@@ -1026,6 +1028,125 @@ async function impApply(btn){
         man[sid].forEach(function(b){if(cur.map(nkey).indexOf(nkey(b))<0&&nkey(b)!==nkey(s.name))cur.push(b);});al.staff=cur.join(',');
         try{await q(sb.from('site_sites').update({aliases:al}).eq('id',s.id));}catch(e){}}}
     S.imp=null;await loadAll();S.keepScroll=true;render();toast('기준일 '+bd+' 인원을 '+Object.keys(sites).length+'곳 ('+n+'줄) 반영했습니다. 대시보드 결원현황이 바뀌었습니다',6000);
+  }catch(x){toast(errMsg(x),6000);btn.disabled=false;btn.textContent='다시 반영';}
+}
+
+/* ---------- 층별현황 엑셀 일괄 등록 (관리자 · 2026-11-13) ----------
+   「상면활용현황」 엑셀(사옥마다 시트 1장: ■ 현황요약 + ■ 세부현황)을 통째로 읽어 사업장별 층별현황을 한 번에 바꾼다.
+   파일은 서버에 올라가지 않고 읽은 내용만 저장. 한 건물이 여러 시트(구관·신관 등)면 같은 사업장의 「동」으로 묶는다. */
+function ftxt(v){return String(v==null?'':v).replace(/\s+/g,' ').trim();}
+function fnumv(v){if(typeof v==='number')return isFinite(v)?v:null;return num(ftxt(v));}
+function r2(v){return v==null?null:Math.round(v*100)/100;}
+function floorLabel(v){var t=ftxt(v).toUpperCase().replace(/\s/g,''),m;
+  if((m=/^B(\d+)F?$/.exec(t)))return 'B'+m[1];if((m=/^지하(\d+)층?$/.exec(t)))return 'B'+m[1];
+  if((m=/^(지상)?(\d+)(층|F)?$/.exec(t)))return m[2]+'F';return t;}
+function parseFloorSheet(sh){
+  var rows=sh.rows,h=-1,sm=-1;
+  for(var i=0;i<Math.min(rows.length,60);i++){var a=nj((rows[i]||[])[0]);if(a==='연면적'&&sm<0)sm=i;if(a==='층'){var nx=(rows[i+1]||[]).map(nj);if(nx.indexOf('대분류')>=0||nx.indexOf('바닥면적')>=0){h=i;break;}}}
+  if(h<0)return null;
+  var col={},h1=(rows[h]||[]).map(nj),h2=(rows[h+1]||[]).map(nj);
+  var find=function(arr,re){for(var c=0;c<arr.length;c++)if(arr[c]&&re.test(arr[c]))return c;return -1;};
+  col.gross=find(h2,/^바닥면적/);col.net=find(h2,/^전용면적/);col.cat=find(h2,/^대분류/);col.sub=find(h2,/^소분류/);col.name=find(h2,/^사용부서/);col.seats=find(h2,/^좌석/);col.area=find(h2,/^면적/);col.common=find(h1,/^공용면적/);col.memo=find(h1,/^비고/);
+  if(col.cat<0||col.name<0)return null;
+  var tm=/[\[［](.+?)[\]］]/.exec(ftxt((rows[0]||[])[0])),title=tm?tm[1].trim():ftxt(sh.name);
+  var floors=[],by={},cur=null,total=null;
+  for(var r=h+2;r<rows.length;r++){var row=rows[r]||[],a0=ftxt(row[0]);
+    if(/^(합계|총계|계)$/.test(a0.replace(/\s/g,''))){total={gross:fnumv(row[col.gross]),net:fnumv(row[col.net]),seats:fnumv(row[col.seats]),common:fnumv(row[col.common])};break;}
+    if(a0){var lb=floorLabel(a0);cur=by[lb];if(!cur){cur=by[lb]={floor:lb,area:0,net:0,common:0,seats:0,memo:[],detail:[]};floors.push(cur);}}
+    if(!cur)continue;
+    var g=col.gross>=0?fnumv(row[col.gross]):null,n=col.net>=0?fnumv(row[col.net]):null,cm=col.common>=0?fnumv(row[col.common]):null;
+    if(g)cur.area+=g;if(n)cur.net+=n;if(cm)cur.common+=cm;
+    var mm=col.memo>=0?ftxt(row[col.memo]):'';if(mm&&cur.memo.indexOf(mm)<0)cur.memo.push(mm);
+    var c1=ftxt(row[col.cat]),c2=col.sub>=0?ftxt(row[col.sub]):'',nm=ftxt(row[col.name]),st=col.seats>=0?fnumv(row[col.seats]):null,ar=col.area>=0?fnumv(row[col.area]):null;
+    if(c1||c2||nm||ar){if(/^공유면적$/.test(c1))c1='공용면적';cur.detail.push([c1,c2,nm,st?Math.round(st):0,r2(ar)||0]);if(st)cur.seats+=Math.round(st);}
+  }
+  if(!floors.length)return null;
+  floors.forEach(function(f){var us=[],ts=[];f.detail.forEach(function(d){var u=d[1]||d[0];if(u&&us.indexOf(u)<0)us.push(u);if(d[2]&&d[2]!=='공실'&&ts.indexOf(d[2])<0)ts.push(d[2]);});
+    f.usage=us.join(', ');f.tenant=ts.join(', ');f.memo=f.memo.join(' / ');f.area=r2(f.area)||null;f.net=r2(f.net);f.common=r2(f.common);});
+  floors.sort(function(a,b){return floorKey(a.floor)-floorKey(b.floor);});
+  var sum={};
+  if(sm>=0){var v=rows[sm+3]||[],k=['gross','work','equip','amenity','skt','biz','cc','partner','tenant','vacant','net','common'];
+    var hs=(rows[sm+1]||[]).map(nj),ok=/^SKT/.test(hs[1]||'')&&/공실/.test(hs[9]||'');
+    if(ok)k.forEach(function(key,c){var x=fnumv(v[c]);if(x!=null)sum[key]=r2(x);});}
+  if(sum.gross==null){var s0={gross:0,net:0,common:0,skt:0,partner:0,tenant:0,vacant:0};
+    floors.forEach(function(f){s0.gross+=f.area||0;s0.net+=f.net||0;s0.common+=f.common||0;f.detail.forEach(function(d){var key=/^SKT/.test(d[0])?'skt':/협력/.test(d[0])?'partner':/임차/.test(d[0])?'tenant':/공실/.test(d[0])?'vacant':'';if(key)s0[key]+=d[4]||0;});});
+    Object.keys(s0).forEach(function(key){sum[key]=r2(s0[key]);});}
+  sum.seats=floors.reduce(function(a,f){return a+(f.seats||0);},0);
+  var chk=[];
+  if(total){var sg=floors.reduce(function(a,f){return a+(f.area||0);},0),sn=floors.reduce(function(a,f){return a+f.detail.reduce(function(x,d){return x+(d[4]||0);},0);},0);
+    if(total.gross!=null&&Math.abs(sg-total.gross)>0.6)chk.push('바닥면적 합 '+fnum(sg)+' ≠ 합계 '+fnum(total.gross));
+    if(total.net!=null&&Math.abs(sn-total.net)>0.6)chk.push('전용면적 합 '+fnum(sn)+' ≠ 합계 '+fnum(total.net));}
+  return{sheet:sh.name,title:title,floors:floors,sum:sum,chk:chk};
+}
+function fimpMatch(title,sheet){
+  var sites=activeSites(),tryOne=function(raw){raw=ftxt(raw);if(!raw)return null;
+    var m=/^(.*?)\s*[(（](.+?)[)）]\s*$/.exec(raw),base=m?m[1].trim():raw,inner=m?m[2].trim():'',kr=nkey(raw),kb=nkey(base),hit;
+    var al=function(s){return alList((s.aliases||{}).floor);};
+    hit=sites.filter(function(s){return nkey(s.name)===kr||snk(s)===kr||al(s).indexOf(kr)>=0;});if(hit.length===1)return{site:hit[0].id,bldg:''};
+    hit=sites.filter(function(s){return nkey(s.name)===kb||snk(s)===kb||al(s).indexOf(kb)>=0;});if(hit.length===1)return{site:hit[0].id,bldg:inner};
+    var k2=kb.replace(/(사옥|빌딩|센터)$/,'');
+    if(k2.length>=2&&k2!==kb){hit=sites.filter(function(s){return snk(s)===k2;});if(hit.length===1)return{site:hit[0].id,bldg:inner};}
+    if(kb.length>=2){hit=sites.filter(function(s){var k=snk(s);return k.length>=2&&kb.indexOf(k)===0;});if(hit.length===1)return{site:hit[0].id,bldg:inner};}
+    return null;};
+  var r=tryOne(title)||tryOne(sheet);
+  if(r)return r;var m2=/[(（](.+?)[)）]\s*$/.exec(ftxt(title));return{site:0,bldg:m2?m2[1].trim():''};
+}
+async function fimpLoad(file){
+  try{toast('엑셀 읽는 중…');var sh=await readXlsx(file,120),list=[];
+    sh.forEach(function(s){var p=null;try{p=parseFloorSheet(s);}catch(e){}if(p)list.push(p);});
+    if(!list.length)throw new Error('「층 · 대분류 · 사용부서」 제목이 있는 세부현황 시트를 찾지 못했습니다. 상면활용현황 양식인지 확인하세요');
+    var dt0=xlsxDate(sh),ym=null;
+    if(!dt0){var re=/(20\d{2})\s*[년.\-]\s*(\d{1,2})\s*월?/;sh.some(function(s){for(var r=0;r<4;r++){var row=s.rows[r]||[];for(var c=0;c<row.length;c++){var m=typeof row[c]==='string'&&re.exec(row[c]);if(m){ym=m[1]+'-'+('0'+m[2]).slice(-2)+'-01';return true;}}}return false;});
+      if(!ym){var fm=/(20\d{2})[.\-_ ]?(\d{2})/.exec(file.name);if(fm&&Number(fm[2])>=1&&Number(fm[2])<=12)ym=fm[1]+'-'+fm[2]+'-01';}}
+    S.fimp={company:S.company,file:file.name,base:dt0||ym||today(),dateFound:!!(dt0||ym),remember:true,skipped:sh.length-list.length,
+      rows:list.map(function(p){var mm=fimpMatch(p.title,p.sheet);return{sheet:p.sheet,title:p.title,site:mm.site,auto:!!mm.site,bldg:mm.bldg,floors:p.floors,sum:p.sum,chk:p.chk};})};
+    S.keepScroll=true;render();toast('사옥 시트 '+list.length+'장을 읽었습니다. 확인 후 반영을 누르세요',5000);
+  }catch(x){toast(errMsg(x),7000);}
+}
+/* 사업장별로 묶기: 같은 사업장에 시트가 둘 이상이면 동 이름이 꼭 있어야 하고 서로 달라야 함 */
+function fimpGroups(){var by={},err=[];S.fimp.rows.forEach(function(r){if(!r.site)return;(by[r.site]=by[r.site]||[]).push(r);});
+  Object.keys(by).forEach(function(id){var g=by[id];if(g.length<2)return;var seen={};g.forEach(function(r){var k=nkey(r.bldg);if(!k||seen[k]){var s=byId(S.sites,Number(id));if(err.indexOf(s.name)<0)err.push(s.name);}seen[k]=1;});});
+  return{by:by,err:err};}
+function viewFimp(){
+  var head='<section class="card"><h3>층별현황 엑셀 일괄 등록</h3><p class="muted" style="font-size:12.5px;margin:0 0 10px">「상면활용현황」 엑셀 전체 파일을 고르면 사옥별 시트의 층별 입주현황(구분·사용부서·좌석수·전용면적)과 면적 요약을 읽어 사업장별 층별현황에 한꺼번에 반영합니다. 파일은 서버에 올라가지 않고 읽은 내용만 저장됩니다. 사업장 화면의 「사진으로 입력」·「직접 입력」은 그대로 쓸 수 있습니다.</p>'+
+    '<p style="font-size:12.5px;margin:0 0 10px">지금 고른 회사: <b>'+esc(S.company)+'</b> · 엑셀에 있는 사업장만 새 자료로 바뀌고, 엑셀에 없는 사업장의 층별현황은 그대로 둡니다.</p><label class="btn pri" style="display:inline-flex;cursor:pointer">'+I.plus+'엑셀 파일 고르기<input type="file" id="fimpfile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label></section>';
+  if(!S.fimp)return head;
+  var im=S.fimp,opts=activeSites().map(function(s){return '<option value="'+s.id+'">'+esc(s.name)+'</option>';}).join('');
+  var G=fimpGroups(),ids=Object.keys(G.by),ok=im.rows.filter(function(r){return r.site;}).length,miss=im.rows.length-ok,warn=im.rows.filter(function(r){return r.chk.length;}).length;
+  var rows=im.rows.map(function(r,i){var multi=r.site&&G.by[r.site].length>1,nd=r.floors.reduce(function(a,f){return a+f.detail.length;},0);
+    return '<tr'+(r.site?'':' style="background:var(--warn-soft,#fff6e0)"')+'><td>'+esc(r.title)+(r.title!==r.sheet?' <span class="muted" style="font-size:11.5px">('+esc(r.sheet)+')</span>':'')+'</td>'+
+      '<td><select data-fimp="'+i+'" aria-label="'+esc(r.title)+' 사업장"><option value="0">— 건너뛰기 —</option>'+opts.replace('value="'+r.site+'"','value="'+r.site+'" selected')+'</select>'+(r.site&&!r.auto?' <span class="chip acc">직접 연결</span>':'')+'</td>'+
+      '<td><input data-fimpb="'+i+'" value="'+esc(r.bldg||'')+'" placeholder="'+(multi?'동 이름 필요':'—')+'" aria-label="동 이름" style="width:92px'+(multi&&!r.bldg?';border-color:var(--bad)':'')+'"></td>'+
+      '<td class="n num">'+r.floors.length+'층 · '+nd+'줄</td><td class="n num">'+fnum(Math.round(r.sum.net||0))+' / '+fnum(Math.round(r.sum.gross||0))+'</td><td class="n num">'+(r.sum.vacant?'<span class="chip bad">'+fnum(Math.round(r.sum.vacant))+'</span>':'0')+'</td><td class="n num">'+fmt(r.sum.seats||0)+'</td>'+
+      '<td style="white-space:normal;font-size:12px">'+(r.chk.length?'<span class="chip warn" title="'+esc(r.chk.join(' / '))+'">합계 확인</span> '+esc(r.chk.join(' / ')):'<span class="muted">합계 일치</span>')+'</td></tr>';}).join('');
+  var had=ids.filter(function(id){var s=byId(S.sites,Number(id));return s&&s.floor_info;}).length;
+  return head+'<section class="card"><h3>미리보기 <span class="chip co-chip co-'+im.company.toLowerCase()+'">'+esc(im.company)+' 사업장에 반영</span> <span class="chip">'+esc(im.file)+'</span></h3>'+
+    '<div class="filters" style="margin-bottom:10px;align-items:center"><label class="field" style="margin:0"><span>기준일 *'+(im.dateFound?' (파일에서 찾음)':'')+'</span><input type="date" id="fimp-bd" value="'+esc(im.base)+'"></label>'+
+    '<span class="chip good">연결 '+ok+'장 · '+ids.length+'곳</span>'+(miss?'<span class="chip warn">미연결 '+miss+'장</span>':'')+(warn?'<span class="chip warn">합계 확인 '+warn+'장</span>':'')+(im.skipped?'<span class="chip">세부현황이 아닌 시트 '+im.skipped+'장 제외</span>':'')+'</div>'+
+    (miss?'<div class="lnote" style="margin-bottom:10px"><span>노란 줄은 사업장을 자동으로 찾지 못한 시트입니다. 목록에서 사업장을 고르거나 건너뛰세요.</span></div>':'')+
+    (G.err.length?'<div class="err" style="margin-bottom:10px">'+esc(G.err.join(', '))+': 한 사업장에 시트가 둘 이상이면 「동」 이름을 서로 다르게 적어야 합니다 (예: 구관 · 신관).</div>':'')+
+    '<div class="tbl-wrap"><table><thead><tr><th>엑셀 시트</th><th>사업장</th><th>동</th><th class="n">읽은 내용</th><th class="n">전용 / 연면적(㎡)</th><th class="n">공실(㎡)</th><th class="n">좌석</th><th>검산</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+    '<p class="muted" style="font-size:12.5px;margin:12px 0 0">반영하면 연결된 '+ids.length+'곳의 층별현황이 이 엑셀 내용으로 모두 바뀝니다'+(had?' (이 중 '+had+'곳은 지난번 엑셀 자료가 새 기준일 자료로 바뀜)':'')+'. 바뀌기 전 내용은 감사 로그에 남습니다.</p>'+
+    '<label style="display:flex;gap:8px;align-items:center;margin:12px 0;font-size:13px"><input type="checkbox" id="fimp-rem"'+(im.remember?' checked':'')+' style="width:auto">직접 연결한 이름을 기억해서 다음 업로드 때 자동으로 연결</label>'+
+    '<div class="actions"><button type="button" class="btn" data-act="fimp-cancel">취소</button><button type="button" class="btn pri" data-act="fimp-apply"'+(ok&&!G.err.length?'':' disabled')+'>'+ids.length+'곳에 반영</button></div></section>';
+}
+function fimpPayload(){var G=fimpGroups();
+  return Object.keys(G.by).map(function(id){var g=G.by[id],multi=g.length>1,floors=[],bldgs=[];
+    g.forEach(function(r){var lb=multi?r.bldg:(r.bldg||'');bldgs.push(Object.assign({label:lb||null},r.sum));
+      r.floors.forEach(function(f){floors.push({bldg:lb||null,floor:f.floor,usage:f.usage,tenant:f.tenant,area:f.area,net:f.net,common:f.common,seats:f.seats,memo:f.memo,detail:f.detail});});});
+    return{site_id:Number(id),bldgs:bldgs,floors:floors};});}
+async function fimpApply(btn){
+  var im=S.fimp;if(!im)return;var bd=(document.getElementById('fimp-bd')||{}).value||im.base;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(bd)){toast('기준일을 입력하세요');return;}
+  if(fimpGroups().err.length){toast('동 이름을 확인하세요');return;}
+  var list=fimpPayload();if(!list.length){toast('반영할 시트가 없습니다');return;}
+  btn.disabled=true;btn.textContent='반영 중…';
+  try{var n=await q(sb.rpc('site_floors_import',{p_base:bd,p_src:im.file,p_sites:list}));
+    if(im.remember){var man={};im.rows.forEach(function(r){if(r.site&&!r.auto){(man[r.site]=man[r.site]||[]).push(r.title.replace(/\s*[(（].+?[)）]\s*$/,''));}});
+      for(var sid in man){var s=byId(S.sites,Number(sid));if(!s)continue;var al=Object.assign({},s.aliases||{}),cur=String(al.floor||'').split(',').map(function(x){return x.trim();}).filter(Boolean);
+        man[sid].forEach(function(b){if(cur.map(nkey).indexOf(nkey(b))<0&&nkey(b)!==nkey(s.name))cur.push(b);});al.floor=cur.join(',');
+        try{await q(sb.from('site_sites').update({aliases:al}).eq('id',s.id));}catch(e){}}}
+    S.fimp=null;S.detailFor=null;await loadAll();S.keepScroll=true;render();toast('기준일 '+bd+' 층별현황을 '+list.length+'곳 ('+n+'개 층) 반영했습니다',6000);
   }catch(x){toast(errMsg(x),6000);btn.disabled=false;btn.textContent='다시 반영';}
 }
 
@@ -1221,8 +1342,10 @@ function equipForm(e,kind){
 }
 /* ---------- 층별현황 (직접 입력 / 사진으로 자동 입력 → 확인 후 저장) ---------- */
 function floorKey(f){var t=String(f||'').toUpperCase().replace(/\s/g,'');var m;
-  if(/^(PH|옥탑|RF|R)/.test(t))return 1000+(parseInt(t.replace(/\D/g,''),10)||0);
+  if(/^(PH|옥탑|옥상|RF|R)/.test(t))return 1000+(parseInt(t.replace(/\D/g,''),10)||0);
+  if((m=t.match(/^BM(\d+)/)))return -Number(m[1])+0.5;
   if((m=t.match(/^(B|지하)(\d+)/)))return -Number(m[2]);
+  if((m=t.match(/^(\d+)(중|M)/)))return Number(m[1])+0.5;
   if((m=t.match(/^(\d+)(F|층)?/)))return Number(m[1]);
   if((m=t.match(/^(M|중)(\d*)/)))return (Number(m[2])||1)+0.5;
   return 500;}
@@ -1263,19 +1386,40 @@ function infoForm(s,col){var M=INFO_META[col],sid=s.id;closeModal();
     try{var up={};up[col]=out;await q(sb.from('site_sites').update(up).eq('id',sid));closeModal();await afterSave(M.title+'을(를) 저장했습니다',sid);}
     catch(x){er.textContent=errMsg(x);bt.disabled=false;bt.textContent='저장';}});
 }
+/* 층별현황 카드 — 엑셀(상면활용현황)로 올린 층은 입주 세부(구분·사용부서·좌석·전용면적)까지, 동이 여럿이면 동별로 */
+function fnum(v){var n=Number(v)||0;return n.toLocaleString('ko-KR',{maximumFractionDigits:2});}
+function floorCatChip(c,s){var cls=/공실/.test(c)?' bad':/임차/.test(c)?' warn':/협력/.test(c)?' acc':/공용|공유/.test(c)?' ex':'';return '<span class="chip'+cls+'" title="'+esc(c||'')+'">'+esc(s||c||'')+'</span>';}
+function floorGroups(list){var gs=[],by={};list.forEach(function(f){var k=f.bldg||'';if(!by[k]){by[k]={label:k,rows:[]};gs.push(by[k]);}by[k].rows.push(f);});return gs;}
+function floorSumChips(b){if(!b)return '';var c=function(t,v,cls){return v?'<span class="chip'+(cls||'')+'">'+t+' '+fnum(Math.round(v))+'㎡</span>':'';};
+  return '<div class="list2" style="display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px">'+c('연면적',b.gross)+c('전용',b.net)+c('공용',b.common)+c('SKT 자가',b.skt,' good')+c('관계·협력사',b.partner,' acc')+c('외부 임차',b.tenant,' warn')+
+    (b.net?'<span class="chip'+(b.vacant?' bad':'')+'">공실 '+fnum(Math.round(b.vacant||0))+'㎡'+(b.vacant?' ('+(Math.round(b.vacant/b.net*1000)/10)+'%)':'')+'</span>':'')+(b.seats?'<span class="chip">좌석 '+fmt(b.seats)+'</span>':'')+'</div>';}
 function floorsCard(s,ed){var list=(S.detail.floors||[]).slice().sort(function(a,b){return a.sort-b.sort||a.id-b.id;});
   var tot=list.reduce(function(a,f){return a+(Number(f.area_m2)||0);},0);
-  var rows=list.map(function(f){return '<tr><td><b>'+esc(f.floor)+'</b></td><td>'+esc(f.usage||'')+'</td><td style="white-space:normal">'+esc(f.tenant||'')+'</td><td class="n num">'+(f.area_m2?fmt(f.area_m2):'')+'</td><td class="muted" style="white-space:normal">'+esc(f.memo||'')+'</td></tr>';}).reverse().join('');
+  var info=s&&s.floor_info,hasD=list.some(function(f){return f.detail&&f.detail.length;}),gs=floorGroups(list);
+  var sumOf=function(label){var bl=info&&info.bldgs||[];return bl.filter(function(b){return (b.label||'')===(label||'');})[0]||(bl.length===1&&gs.length===1?bl[0]:null);};
+  var one=function(f){
+    if(!(f.detail&&f.detail.length))return '<tr><td><b>'+esc(f.floor)+'</b></td><td>'+esc(f.usage||'')+'</td><td style="white-space:normal">'+esc(f.tenant||'')+'</td>'+(hasD?'<td></td>':'')+'<td class="n num">'+(f.area_m2?fnum(f.area_m2):'')+'</td><td class="muted" style="white-space:normal">'+esc(f.memo||'')+'</td></tr>';
+    var n=f.detail.length,note=[f.common_m2?'공용 '+fnum(f.common_m2):'',f.memo?esc(f.memo):''].filter(Boolean).join(' · ');
+    return f.detail.map(function(d,i){var vac=/공실/.test(d[0]||'');
+      return '<tr'+(i?' class="fsub"':'')+'>'+(i?'':'<td rowspan="'+n+'" style="vertical-align:top"><b>'+esc(f.floor)+'</b>'+(f.area_m2?'<div class="muted num" style="font-size:11.5px;font-weight:400">'+fnum(f.area_m2)+'㎡</div>':'')+'</td>')+
+        '<td>'+floorCatChip(d[0],d[1])+'</td><td style="white-space:normal">'+(vac&&!d[2]?'<span class="muted">공실</span>':esc(d[2]||''))+'</td><td class="n num">'+(d[3]?fmt(d[3]):'')+'</td><td class="n num">'+(d[4]?fnum(d[4]):'')+'</td>'+
+        (i?'':'<td rowspan="'+n+'" class="muted" style="white-space:normal;vertical-align:top;font-size:12px">'+note+'</td>')+'</tr>';}).join('');};
+  var table=function(rows){return '<div class="tbl-wrap"><table><thead><tr><th>층'+(hasD?' · 바닥면적':'')+'</th><th>'+(hasD?'구분':'용도')+'</th><th>입주사·부서</th>'+(hasD?'<th class="n">좌석</th>':'')+'<th class="n">'+(hasD?'전용(㎡)':'면적(㎡)')+'</th><th>비고</th></tr></thead><tbody>'+rows.slice().reverse().map(one).join('')+'</tbody></table></div>';};
+  var body=gs.map(function(g){return (gs.length>1||g.label?'<div class="ilabel" style="margin-top:12px"><span class="chip acc">'+esc(g.label||'건물')+'</span> <span class="muted" style="font-size:12px">'+g.rows.length+'개 층</span></div>':'')+floorSumChips(sumOf(g.label))+table(g.rows);}).join('');
+  var src=info&&info.base?'<div class="muted" style="font-size:12px;margin-top:10px">'+esc(info.base)+' 기준'+(info.src?' · 출처: '+esc(info.src):'')+' (엑셀 일괄 등록)</div>':'';
   return '<section class="card"><h3>층별현황 <span class="chip">'+list.length+'개 층</span>'+(tot?'<span class="muted" style="font-weight:400;font-size:12px">합계 '+fmt(Math.round(tot))+'㎡</span>':'')+
     (ed?'<span class="r actions"><label class="btn sm" style="cursor:pointer" title="층별 안내판·안내표·도면을 찍으면 자동으로 읽어 넣습니다">📷 사진으로 입력<input type="file" accept="image/*" multiple hidden data-fphoto="1"></label><button type="button" class="btn sm" data-act="floors-edit">'+(list.length?'수정':I.plus+'직접 입력')+'</button></span>':'')+'</h3>'+
-    (list.length?'<div class="tbl-wrap"><table><thead><tr><th>층</th><th>용도</th><th>입주사·부서</th><th class="n">면적(㎡)</th><th>비고</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<div class="empty">층별현황이 없습니다.'+(ed?' 「직접 입력」하거나 층별 안내판을 「사진으로 입력」하세요.':'')+'</div>')+'</section>';}
+    (list.length?body+src:'<div class="empty">층별현황이 없습니다.'+(ed?' 「직접 입력」하거나 층별 안내판을 「사진으로 입력」하세요.'+(isAdmin()?' 여러 사업장은 설정 › 층별 엑셀에서 한꺼번에 올릴 수 있습니다.':''):'')+'</div>')+'</section>';}
 function floorsForm(rows,note){
   var sid=S.siteId,site=byId(S.sites,sid);closeModal();
   var m=document.createElement('div');m.className='modal';m.id='modal';
-  var row=function(f){f=f||{};return '<tr><td><input class="fl" data-f="floor" value="'+esc(f.floor||'')+'" placeholder="3F"></td><td><input data-f="usage" value="'+esc(f.usage||'')+'" placeholder="용도"></td><td><input data-f="tenant" value="'+esc(f.tenant||'')+'" placeholder="입주사·부서"></td><td><input class="n" data-f="area" inputmode="decimal" value="'+(f.area_m2?esc(f.area_m2):'')+'" placeholder="㎡"></td><td><input data-f="memo" value="'+esc(f.memo||'')+'" placeholder="비고"></td><td><button type="button" class="btn sm danger" data-fdel aria-label="삭제">×</button></td></tr>';};
-  rows=(rows||[]).slice().sort(function(a,b){return floorKey(b.floor)-floorKey(a.floor);});
-  m.innerHTML='<form class="mbox" id="mform" novalidate style="max-width:860px"><h2>층별현황 '+(note?'— 사진 판독 결과 확인':'입력')+'</h2><div class="lnote"><span>'+(note?esc(note)+' 틀린 곳을 고친 뒤 저장하세요. ':'')+'위층부터 아래층 순서로 적어도 되고, 저장할 때 층 표기(B2·1F·PH)로 자동 정렬됩니다. 저장하면 이 사업장의 층별현황 전체가 아래 표로 바뀝니다.</span></div>'+
-    '<div class="flrs tbl-wrap"><table><thead><tr><th>층</th><th>용도</th><th>입주사·부서</th><th class="n">면적(㎡)</th><th>비고</th><th></th></tr></thead><tbody id="frows">'+rows.map(row).join('')+'</tbody></table></div>'+
+  var hasB=(rows||[]).some(function(f){return f&&f.bldg;});
+  var row=function(f){f=f||{};return '<tr>'+(hasB?'<td><input data-f="bldg" value="'+esc(f.bldg||'')+'" placeholder="동" style="min-width:64px"></td>':'')+'<td><input class="fl" data-f="floor" value="'+esc(f.floor||'')+'" placeholder="3F"></td><td><input data-f="usage" value="'+esc(f.usage||'')+'" placeholder="용도"></td><td><input data-f="tenant" value="'+esc(f.tenant||'')+'" placeholder="입주사·부서"></td><td><input class="n" data-f="area" inputmode="decimal" value="'+(f.area_m2?esc(f.area_m2):'')+'" placeholder="㎡"></td><td><input data-f="memo" value="'+esc(f.memo||'')+'" placeholder="비고"></td><td><button type="button" class="btn sm danger" data-fdel aria-label="삭제">×</button></td></tr>';};
+  var bord=[];(rows||[]).forEach(function(f){var k=f.bldg||'';if(bord.indexOf(k)<0)bord.push(k);});
+  rows=(rows||[]).slice().sort(function(a,b){return bord.indexOf(a.bldg||'')-bord.indexOf(b.bldg||'')||floorKey(b.floor)-floorKey(a.floor);});
+  var hasDet=rows.some(function(f){return f.detail&&f.detail.length;});
+  m.innerHTML='<form class="mbox" id="mform" novalidate style="max-width:860px"><h2>층별현황 '+(note?'— 사진 판독 결과 확인':'입력')+'</h2><div class="lnote"><span>'+(note?esc(note)+' 틀린 곳을 고친 뒤 저장하세요. ':'')+'위층부터 아래층 순서로 적어도 되고, 저장할 때 층 표기(B2·1F·PH)로 자동 정렬됩니다. 저장하면 이 사업장의 층별현황 전체가 아래 표로 바뀝니다.'+(hasDet?' 엑셀로 올린 입주 세부(구분·좌석·전용면적)는 그 층의 용도·입주사를 고치지 않으면 그대로 남고, 고치면 그 층만 세부가 지워집니다.':'')+'</span></div>'+
+    '<div class="flrs tbl-wrap"><table><thead><tr>'+(hasB?'<th>동</th>':'')+'<th>층</th><th>용도</th><th>입주사·부서</th><th class="n">면적(㎡)</th><th>비고</th><th></th></tr></thead><tbody id="frows">'+rows.map(row).join('')+'</tbody></table></div>'+
     '<div class="actions" style="margin-top:8px"><button type="button" class="btn sm" id="fadd">'+I.plus+'층 추가</button><button type="button" class="btn sm" id="fgen" title="기본현황의 지상·지하 층수대로 빈 행을 만듭니다">층수대로 행 만들기</button></div><div class="err" id="merr"></div><div class="act"><button type="button" class="btn" data-close>취소</button><button class="btn pri" id="msave">저장</button></div></form>';
   app.appendChild(m);
   var tb=function(){return document.getElementById('frows');};
@@ -1289,12 +1433,16 @@ function floorsForm(rows,note){
       for(var i=fa;i>=1;i--){if(!have[i+'F']){addRow({floor:i+'F'});n++;}}for(var j=1;j<=fb;j++){if(!have['B'+j]){addRow({floor:'B'+j});n++;}}
       toast(n?n+'개 층 행을 추가했습니다':'이미 모든 층이 있습니다');}});
   document.getElementById('mform').addEventListener('submit',async function(e){e.preventDefault();var er=document.getElementById('merr');
-    var out=[],seen={},dup=null;
-    tb().querySelectorAll('tr').forEach(function(tr){var g=function(k){return tr.querySelector('[data-f="'+k+'"]').value.trim();};var fl=g('floor');if(!fl)return;
-      var k=fl.toUpperCase();if(seen[k])dup=fl;seen[k]=1;out.push({site_id:sid,floor:fl,usage:g('usage')||null,tenant:g('tenant')||null,area_m2:num(g('area')),memo:g('memo')||null});});
+    var out=[],seen={},dup=null,old=S.detailFor===sid?(S.detail.floors||[]):[],bo=[];
+    tb().querySelectorAll('tr').forEach(function(tr){var g=function(k){var el=tr.querySelector('[data-f="'+k+'"]');return el?el.value.trim():'';};var fl=g('floor');if(!fl)return;
+      var bg=g('bldg')||null,k=(bg||'')+'|'+fl.toUpperCase();if(seen[k])dup=(bg?bg+' ':'')+fl;seen[k]=1;if(bo.indexOf(bg||'')<0)bo.push(bg||'');
+      var r={site_id:sid,bldg:bg,floor:fl,usage:g('usage')||null,tenant:g('tenant')||null,area_m2:num(g('area')),memo:g('memo')||null,net_m2:null,common_m2:null,seats:null,detail:null};
+      var o=old.filter(function(c){return (c.bldg||'')===(bg||'')&&String(c.floor).toUpperCase()===fl.toUpperCase();})[0];
+      if(o&&o.detail&&o.detail.length&&(o.usage||null)===r.usage&&(o.tenant||null)===r.tenant){r.detail=o.detail;r.net_m2=o.net_m2;r.common_m2=o.common_m2;r.seats=o.seats;}
+      out.push(r);});
     if(dup){er.textContent='층 「'+dup+'」이(가) 두 번 있습니다.';return;}
     if(!out.length&&!confirm('입력한 층이 없습니다. 이 사업장의 층별현황을 모두 지울까요?'))return;
-    out.sort(function(a,b){return floorKey(a.floor)-floorKey(b.floor);}).forEach(function(r,i){r.sort=i;});
+    out.sort(function(a,b){return bo.indexOf(a.bldg||'')-bo.indexOf(b.bldg||'')||floorKey(a.floor)-floorKey(b.floor);}).forEach(function(r,i){r.sort=i;});
     var bt=document.getElementById('msave');bt.disabled=true;bt.textContent='저장 중…';
     try{await q(sb.from('site_floors').delete().eq('site_id',sid));if(out.length)await q(sb.from('site_floors').insert(out));closeModal();await afterSave('층별현황 '+out.length+'개 층을 저장했습니다',sid);}
     catch(x){er.textContent=errMsg(x);bt.disabled=false;bt.textContent='저장';}});
@@ -1310,9 +1458,9 @@ async function floorsPhoto(files){
     var d=r.data||{},got=d.floors||[];
     if(!got.length){toast(d.note||'사진에서 층별 정보를 찾지 못했습니다. 더 선명하게 찍어 다시 시도하세요',7000);return;}
     var cur=(S.detail.floors||[]).slice(),merged=[],seen={};
-    got.forEach(function(f){seen[f.floor.toUpperCase()]=1;var o=cur.filter(function(c){return c.floor.toUpperCase()===f.floor.toUpperCase();})[0];
+    got.forEach(function(f){seen[f.floor.toUpperCase()]=1;var o=cur.filter(function(c){return !c.bldg&&c.floor.toUpperCase()===f.floor.toUpperCase();})[0];
       merged.push({floor:f.floor,usage:f.usage||(o&&o.usage)||'',tenant:f.tenant||(o&&o.tenant)||'',area_m2:f.area_m2||(o&&o.area_m2)||null,memo:f.memo||(o&&o.memo)||''});});
-    cur.forEach(function(c){if(!seen[c.floor.toUpperCase()])merged.push(c);});
+    cur.forEach(function(c){if(c.bldg||!seen[c.floor.toUpperCase()])merged.push(c);});
     toast('사진에서 '+got.length+'개 층을 읽었습니다. 확인 후 저장하세요',5000);
     floorsForm(merged,'사진에서 '+got.length+'개 층을 읽었습니다'+(cur.length?' (기존 '+cur.length+'개 층과 합침)':'')+'.');
   }catch(x){toast('사진 판독 실패: '+errMsg(x),8000);}
@@ -1961,6 +2109,8 @@ app.addEventListener('click',async function(e){
     case 'client-set':clientSetForm(s);return;
     case 'imp-apply':impApply(el);return;
     case 'imp-cancel':S.imp=null;S.keepScroll=true;render();return;
+    case 'fimp-apply':fimpApply(el);return;
+    case 'fimp-cancel':S.fimp=null;S.keepScroll=true;render();return;
     case 'go-imp':S.view='set';S.stab='xlsx';render();return;
     case 'go-cimp':S.view='set';S.stab='const';render();var mn2=document.getElementById('main');if(mn2)mn2.scrollTop=0;return;
     case 'const-reload':delete S.cst[S.siteId];document.getElementById('detail').innerHTML=viewDetail();return;
@@ -2011,6 +2161,11 @@ app.addEventListener('change',async function(e){
   else if(t.dataset.cskip!==undefined&&S.cimp){var pp=S.cimp.photos[Number(t.dataset.cskip)];if(pp){pp.skip=t.checked;S.keepScroll=true;render();}}
   else if(t.dataset.imp!==undefined&&S.imp){var r=S.imp.rows[Number(t.dataset.imp)];if(r){r.site=Number(t.value);r.auto=false;if(!r.site)r.auto=false;S.keepScroll=true;render();}}
   else if(t.id==='imp-bd'&&S.imp){S.imp.base=t.value;}
+  else if(t.id==='fimpfile'&&t.files&&t.files[0]){var ff=t.files[0];t.value='';fimpLoad(ff);}
+  else if(t.dataset.fimp!==undefined&&S.fimp){var fr=S.fimp.rows[Number(t.dataset.fimp)];if(fr){fr.site=Number(t.value);fr.auto=false;S.keepScroll=true;render();}}
+  else if(t.dataset.fimpb!==undefined&&S.fimp){var fb2=S.fimp.rows[Number(t.dataset.fimpb)];if(fb2){fb2.bldg=t.value.trim();S.keepScroll=true;render();}}
+  else if(t.id==='fimp-bd'&&S.fimp){S.fimp.base=t.value;}
+  else if(t.id==='fimp-rem'&&S.fimp){S.fimp.remember=t.checked;}
   else if(t.id==='imp-rem'&&S.imp){S.imp.remember=t.checked;}
   else if(t.dataset.as){var sid=Number(t.dataset.as);t.disabled=true;
     try{if(t.checked)await q(sb.from('site_assign').insert({user_id:S.su,site_id:sid}));else await q(sb.from('site_assign').delete().eq('user_id',S.su).eq('site_id',sid));
