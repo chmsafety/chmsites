@@ -415,6 +415,8 @@ function telFmt(t){var d=String(t||'').replace(/[^0-9]/g,'');if(d.length===11)re
 function today(){var d=new Date(Date.now()+9*3600e3);return d.toISOString().slice(0,10);}
 function dt(s){if(!s)return '—';var d=new Date(new Date(s).getTime()+9*3600e3);return d.toISOString().slice(0,16).replace('T',' ');}
 function isAdmin(){return !!S.me&&S.me.role==='admin';}
+/* 층별현황은 관리자와, 관리자가 계정 관리에서 따로 허용한 계정만 볼 수 있음 (서버에서도 같은 규칙으로 막음) */
+function canFloors(){if(!S.me)return false;if(isAdmin())return true;var m=(S.members||[]).filter(function(x){return x.user_id===S.me.user_id;})[0];return !!(m&&m.can_floors);}
 function canEdit(siteId){return isAdmin()||(!!S.me&&S.me.sites.indexOf(siteId)>=0);}
 function memberName(uid){for(var i=0;i<S.members.length;i++)if(S.members[i].user_id===uid)return S.members[i].name;return '—';}
 function codes(grp,all){return S.codes.filter(function(c){return c.grp===grp&&(all||c.active);}).sort(function(a,b){return a.sort-b.sort;});}
@@ -571,7 +573,7 @@ async function loadAll(){
     q(sb.from('site_sites').select('*').order('sort').order('id')),
     q(sb.from('site_staffing').select('id,site_id,zone,job,quota,current,base_date')),
     q(sb.from('site_codes').select('*').order('grp').order('sort')),
-    q(sb.from('site_members').select('user_id,login_id,name,role,active,must_change_pw,last_login_at,created_at').order('created_at')),
+    q(sb.from('site_members').select('user_id,login_id,name,role,active,must_change_pw,last_login_at,created_at,can_floors').order('created_at')),
     q(sb.from('site_assign').select('user_id,site_id')),
     q(sb.from('site_visits').select('*').order('visit_date',{ascending:false}).order('id',{ascending:false}).limit(500)),
     q(sb.from('site_managers').select('*').order('sort').order('id'))]);
@@ -608,8 +610,9 @@ async function loadDetail(siteId,force){
     q(sb.from('site_visits').select('*').eq('site_id',siteId).order('visit_date',{ascending:false}).order('id',{ascending:false})),
     q(sb.from('site_photos').select('*').eq('site_id',siteId).order('id')),
     q(sb.from('site_people').select('*').eq('site_id',siteId).order('sort').order('id')),
-    q(sb.from('site_floors').select('*').eq('site_id',siteId).order('sort').order('id'))]);
-  S.detail={contacts:r[0],notes:r[1],equip:r[2],visits:r[3],photos:r[4],people:r[5],floors:r[6]};S.detailFor=siteId;
+    q(sb.from('site_floors').select('*').eq('site_id',siteId).order('sort').order('id')),
+    q(sb.from('site_floor_info').select('*').eq('site_id',siteId))]);
+  S.detail={contacts:r[0],notes:r[1],equip:r[2],visits:r[3],photos:r[4],people:r[5],floors:r[6],finfo:(r[7]||[])[0]||null};S.detailFor=siteId;
   await signPhotos(r[4]);
 }
 async function refreshSite(siteId){
@@ -721,7 +724,7 @@ function tabBasic(s,ed){
   var vs=S.detail.visits;var fl=[s.floors_above?'지상 '+s.floors_above+'층':'',s.floors_below?'지하 '+s.floors_below+'층':''].filter(Boolean).join(' / ');
   return '<section class="card"><h3>기본현황'+(ed?'<button type="button" class="btn sm r" data-act="basic-edit">수정</button>':'')+'</h3><dl class="kv"><dt>주소</dt><dd>'+(s.addr?esc(s.addr):'<span class="muted">미입력</span>')+'</dd><dt>연면적</dt><dd>'+(s.area_m2?'<span class="num">'+fmt(s.area_m2)+'</span> ㎡':'<span class="muted">미입력</span>')+'</dd><dt>층수</dt><dd>'+(fl?esc(fl):'<span class="muted">미입력</span>')+'</dd>'+
    '<dt>건축물대장</dt><dd>'+(s.building_id?'<span class="chip good">빌딩정보시스템 연결</span>'+(s.building_synced_at?' <span class="muted" style="font-size:12px">'+esc(dt(s.building_synced_at).slice(0,10))+' 조회</span>':''):'<span class="muted">'+(s.addr?'아직 불러오지 않음':'주소를 넣으면 자동으로 불러옵니다')+'</span>')+
-   (ed&&s.addr?' <button type="button" class="btn sm" data-act="bld-sync">'+(s.building_id?'다시 불러오기':'불러오기')+'</button>':'')+'</dd>'+(s.memo?'<dt>메모</dt><dd style="white-space:pre-wrap">'+esc(s.memo)+'</dd>':'')+'</dl><div style="font-size:12px;color:var(--ink-3);margin:12px 0 4px">현장 사진</div>'+photoStrip('site',s.id,ed,'현장 사진이 없습니다')+'</section>'+infoCard(s,'bldg_info',ed)+floorsCard(s,ed)+
+   (ed&&s.addr?' <button type="button" class="btn sm" data-act="bld-sync">'+(s.building_id?'다시 불러오기':'불러오기')+'</button>':'')+'</dd>'+(s.memo?'<dt>메모</dt><dd style="white-space:pre-wrap">'+esc(s.memo)+'</dd>':'')+'</dl><div style="font-size:12px;color:var(--ink-3);margin:12px 0 4px">현장 사진</div>'+photoStrip('site',s.id,ed,'현장 사진이 없습니다')+'</section>'+infoCard(s,'bldg_info',ed)+(canFloors()?floorsCard(s,ed):'')+
    '<section class="card"><h3>방문기록 <span class="chip">'+vs.length+'건</span>'+(ed?'<button type="button" class="btn sm r" data-act="visit-add">'+I.plus+'방문기록</button>':'')+'</h3>'+
    (vs.length?'<div class="tl">'+vs.map(function(v){return '<div class="tli"><span class="d">'+esc(v.visit_date)+'</span><div class="c"><div class="meta"><span class="chip acc">'+esc(purposeText(v))+'</span>'+visitSrcChip(v)+visitWho(v)+(ed?'<button type="button" class="linkbtn" data-act="visit-edit" data-id="'+v.id+'">수정</button>':'')+'</div><span style="white-space:pre-wrap">'+esc(v.content)+'</span>'+photoStrip('visit',v.id,ed)+'</div></div>';}).join('')+'</div>':'<div class="empty">방문기록이 없습니다.</div>')+'</section>';
 }
@@ -845,9 +848,9 @@ function viewSet(){
   var b='';
   if(S.stab==='acct'){
     if(!S.locks){S.locks={};sb.rpc('site_locked_accounts').then(function(r){(r.data||[]).forEach(function(x){S.locks[x.login_id]=x;});if(S.view==='set'&&S.stab==='acct'){S.keepScroll=true;render();}});}
-    b='<section class="card"><h3>계정 <span class="chip">'+S.members.length+'개</span><span class="muted" style="font-weight:400;font-size:12px">삭제 없이 사용 중지만 · 관리자는 OTP 필수</span><button type="button" class="btn sm r" data-act="acct-add">'+I.plus+'계정 발급</button></h3><div class="tbl-wrap"><table><thead><tr><th>아이디</th><th>이름</th><th>권한</th><th class="n">담당</th><th>상태</th><th>마지막 로그인</th><th></th></tr></thead><tbody>'+
+    b='<section class="card"><h3>계정 <span class="chip">'+S.members.length+'개</span><span class="muted" style="font-weight:400;font-size:12px">삭제 없이 사용 중지만 · 관리자는 OTP 필수 · 층별현황은 「관리」에서 허용한 계정만 열람</span><button type="button" class="btn sm r" data-act="acct-add">'+I.plus+'계정 발급</button></h3><div class="tbl-wrap"><table><thead><tr><th>아이디</th><th>이름</th><th>권한</th><th class="n">담당</th><th>층별현황</th><th>상태</th><th>마지막 로그인</th><th></th></tr></thead><tbody>'+
      S.members.map(function(m){var n=m.role==='admin'?'전체':S.assign.filter(function(a){return a.user_id===m.user_id;}).length;
-       return '<tr><td class="num">'+esc(m.login_id)+'</td><td>'+esc(m.name)+'</td><td><span class="chip '+(m.role==='admin'?'acc':'')+'">'+(m.role==='admin'?'관리자':'일반')+'</span></td><td class="n num">'+n+'</td><td>'+(lockChip(m.login_id))+(m.active?(m.must_change_pw?'<span class="chip warn">첫 로그인 전</span>':'<span class="chip good">사용</span>'):'<span class="chip">중지</span>')+'</td><td class="num muted">'+dt(m.last_login_at)+'</td><td><button type="button" class="btn sm" data-act="acct-menu" data-id="'+m.user_id+'">관리</button></td></tr>';}).join('')+'</tbody></table></div></section>';
+       return '<tr><td class="num">'+esc(m.login_id)+'</td><td>'+esc(m.name)+'</td><td><span class="chip '+(m.role==='admin'?'acc':'')+'">'+(m.role==='admin'?'관리자':'일반')+'</span></td><td class="n num">'+n+'</td><td>'+(m.role==='admin'?'<span class="chip acc">전체</span>':m.can_floors?'<span class="chip good">열람 허용</span>':'<span class="muted">—</span>')+'</td><td>'+(lockChip(m.login_id))+(m.active?(m.must_change_pw?'<span class="chip warn">첫 로그인 전</span>':'<span class="chip good">사용</span>'):'<span class="chip">중지</span>')+'</td><td class="num muted">'+dt(m.last_login_at)+'</td><td><button type="button" class="btn sm" data-act="acct-menu" data-id="'+m.user_id+'">관리</button></td></tr>';}).join('')+'</tbody></table></div></section>';
   } else if(S.stab==='assign'){
     var users=S.members.filter(function(m){return m.role!=='admin';});
     if(!users.length)b='<div class="empty">일반계정이 없습니다. 계정 탭에서 먼저 발급하세요.</div>';
@@ -1119,14 +1122,13 @@ function viewFimp(){
       '<td><input data-fimpb="'+i+'" value="'+esc(r.bldg||'')+'" placeholder="'+(multi?'동 이름 필요':'—')+'" aria-label="동 이름" style="width:92px'+(multi&&!r.bldg?';border-color:var(--bad)':'')+'"></td>'+
       '<td class="n num">'+r.floors.length+'층 · '+nd+'줄</td><td class="n num">'+fnum(Math.round(r.sum.net||0))+' / '+fnum(Math.round(r.sum.gross||0))+'</td><td class="n num">'+(r.sum.vacant?'<span class="chip bad">'+fnum(Math.round(r.sum.vacant))+'</span>':'0')+'</td><td class="n num">'+fmt(r.sum.seats||0)+'</td>'+
       '<td style="white-space:normal;font-size:12px">'+(r.chk.length?'<span class="chip warn" title="'+esc(r.chk.join(' / '))+'">합계 확인</span> '+esc(r.chk.join(' / ')):'<span class="muted">합계 일치</span>')+'</td></tr>';}).join('');
-  var had=ids.filter(function(id){var s=byId(S.sites,Number(id));return s&&s.floor_info;}).length;
   return head+'<section class="card"><h3>미리보기 <span class="chip co-chip co-'+im.company.toLowerCase()+'">'+esc(im.company)+' 사업장에 반영</span> <span class="chip">'+esc(im.file)+'</span></h3>'+
     '<div class="filters" style="margin-bottom:10px;align-items:center"><label class="field" style="margin:0"><span>기준일 *'+(im.dateFound?' (파일에서 찾음)':'')+'</span><input type="date" id="fimp-bd" value="'+esc(im.base)+'"></label>'+
     '<span class="chip good">연결 '+ok+'장 · '+ids.length+'곳</span>'+(miss?'<span class="chip warn">미연결 '+miss+'장</span>':'')+(warn?'<span class="chip warn">합계 확인 '+warn+'장</span>':'')+(im.skipped?'<span class="chip">세부현황이 아닌 시트 '+im.skipped+'장 제외</span>':'')+'</div>'+
     (miss?'<div class="lnote" style="margin-bottom:10px"><span>노란 줄은 사업장을 자동으로 찾지 못한 시트입니다. 목록에서 사업장을 고르거나 건너뛰세요.</span></div>':'')+
     (G.err.length?'<div class="err" style="margin-bottom:10px">'+esc(G.err.join(', '))+': 한 사업장에 시트가 둘 이상이면 「동」 이름을 서로 다르게 적어야 합니다 (예: 구관 · 신관).</div>':'')+
     '<div class="tbl-wrap"><table><thead><tr><th>엑셀 시트</th><th>사업장</th><th>동</th><th class="n">읽은 내용</th><th class="n">전용 / 연면적(㎡)</th><th class="n">공실(㎡)</th><th class="n">좌석</th><th>검산</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
-    '<p class="muted" style="font-size:12.5px;margin:12px 0 0">반영하면 연결된 '+ids.length+'곳의 층별현황이 이 엑셀 내용으로 모두 바뀝니다'+(had?' (이 중 '+had+'곳은 지난번 엑셀 자료가 새 기준일 자료로 바뀜)':'')+'. 바뀌기 전 내용은 감사 로그에 남습니다.</p>'+
+    '<p class="muted" style="font-size:12.5px;margin:12px 0 0">반영하면 연결된 '+ids.length+'곳의 층별현황이 이 엑셀 내용으로 모두 바뀝니다. 바뀌기 전 내용은 감사 로그에 남습니다.</p>'+
     '<label style="display:flex;gap:8px;align-items:center;margin:12px 0;font-size:13px"><input type="checkbox" id="fimp-rem"'+(im.remember?' checked':'')+' style="width:auto">직접 연결한 이름을 기억해서 다음 업로드 때 자동으로 연결</label>'+
     '<div class="actions"><button type="button" class="btn" data-act="fimp-cancel">취소</button><button type="button" class="btn pri" data-act="fimp-apply"'+(ok&&!G.err.length?'':' disabled')+'>'+ids.length+'곳에 반영</button></div></section>';
 }
@@ -1360,7 +1362,7 @@ function infoCard(s,col,ed){var M=INFO_META[col],bl=infoBlocks(s,col);
   var cnt=bl.reduce(function(a,b){return a+(b.rows||[]).length;},0);
   var body=bl.map(function(b){
     var kv='<dl class="kv ikv">'+(b.rows||[]).map(function(r){return '<dt>'+esc(r[0])+'</dt><dd style="white-space:pre-wrap">'+esc(r[1])+'</dd>';}).join('')+'</dl>';
-    var fl=b.floors&&b.floors.length?'<div style="font-size:12px;color:var(--ink-3);margin:12px 0 4px">층별면적 및 입주현황</div><div class="tbl-wrap"><table><thead><tr><th>층</th><th class="n">면적(㎡)</th><th>용도(설계)</th><th>용도(실제)</th></tr></thead><tbody>'+b.floors.map(function(f){return '<tr><td><b>'+esc(f[0])+'</b></td><td class="n num">'+esc(f[1])+'</td><td style="white-space:normal">'+esc(f[2])+'</td><td style="white-space:normal">'+esc(f[3])+'</td></tr>';}).join('')+'</tbody></table></div>':'';
+    var fl=b.floors&&b.floors.length&&canFloors()?'<div style="font-size:12px;color:var(--ink-3);margin:12px 0 4px">층별면적 및 입주현황</div><div class="tbl-wrap"><table><thead><tr><th>층</th><th class="n">면적(㎡)</th><th>용도(설계)</th><th>용도(실제)</th></tr></thead><tbody>'+b.floors.map(function(f){return '<tr><td><b>'+esc(f[0])+'</b></td><td class="n num">'+esc(f[1])+'</td><td style="white-space:normal">'+esc(f[2])+'</td><td style="white-space:normal">'+esc(f[3])+'</td></tr>';}).join('')+'</tbody></table></div>':'';
     return (bl.length>1||b.label?'<div class="ilabel"><span class="chip acc">'+esc(b.label||'건물')+'</span></div>':'')+kv+fl;}).join('<hr class="isep">');
   var src=bl[0]&&bl[0].src?'<div class="muted" style="font-size:12px;margin-top:10px">출처: '+esc(bl[0].src)+'</div>':'';
   return '<details class="card icard"'+(M.open?' open':'')+'><summary><h3>'+M.title+' <span class="chip">'+cnt+'개 항목'+(bl.length>1?' · '+bl.length+'개 동':'')+'</span>'+btn+'</h3></summary>'+body+src+'</details>';}
@@ -1395,7 +1397,7 @@ function floorSumChips(b){if(!b)return '';var c=function(t,v,cls){return v?'<spa
     (b.net?'<span class="chip'+(b.vacant?' bad':'')+'">공실 '+fnum(Math.round(b.vacant||0))+'㎡'+(b.vacant?' ('+(Math.round(b.vacant/b.net*1000)/10)+'%)':'')+'</span>':'')+(b.seats?'<span class="chip">좌석 '+fmt(b.seats)+'</span>':'')+'</div>';}
 function floorsCard(s,ed){var list=(S.detail.floors||[]).slice().sort(function(a,b){return a.sort-b.sort||a.id-b.id;});
   var tot=list.reduce(function(a,f){return a+(Number(f.area_m2)||0);},0);
-  var info=s&&s.floor_info,hasD=list.some(function(f){return f.detail&&f.detail.length;}),gs=floorGroups(list);
+  var info=S.detail.finfo,hasD=list.some(function(f){return f.detail&&f.detail.length;}),gs=floorGroups(list);
   var sumOf=function(label){var bl=info&&info.bldgs||[];return bl.filter(function(b){return (b.label||'')===(label||'');})[0]||(bl.length===1&&gs.length===1?bl[0]:null);};
   var one=function(f){
     if(!(f.detail&&f.detail.length))return '<tr><td><b>'+esc(f.floor)+'</b></td><td>'+esc(f.usage||'')+'</td><td style="white-space:normal">'+esc(f.tenant||'')+'</td>'+(hasD?'<td></td>':'')+'<td class="n num">'+(f.area_m2?fnum(f.area_m2):'')+'</td><td class="muted" style="white-space:normal">'+esc(f.memo||'')+'</td></tr>';
@@ -1504,7 +1506,7 @@ function pwShown(title,login,pw){
     onSave:async function(){try{await navigator.clipboard.writeText(pw);toast('복사했습니다');}catch(e){toast('복사하지 못했습니다. 직접 선택해 복사하세요');return false;}}});
   m.querySelector('[data-close]').textContent='닫기';
 }
-async function reloadMembers(){S.locks=null;var r=await Promise.all([q(sb.from('site_members').select('user_id,login_id,name,role,active,must_change_pw,last_login_at,created_at').order('created_at')),q(sb.from('site_assign').select('user_id,site_id'))]);S.members=r[0];S.assign=r[1];S.me.sites=S.assign.filter(function(a){return a.user_id===S.me.user_id;}).map(function(a){return a.site_id;});}
+async function reloadMembers(){S.locks=null;var r=await Promise.all([q(sb.from('site_members').select('user_id,login_id,name,role,active,must_change_pw,last_login_at,created_at,can_floors').order('created_at')),q(sb.from('site_assign').select('user_id,site_id'))]);S.members=r[0];S.assign=r[1];S.me.sites=S.assign.filter(function(a){return a.user_id===S.me.user_id;}).map(function(a){return a.site_id;});}
 function acctAdd(){
   var pw=randPw();
   openForm({title:'계정 발급',fields:[[{id:'login',label:'아이디',required:true,placeholder:'영문 소문자·숫자 3~30자',maxlength:30},{id:'name',label:'이름',required:true}],{id:'role',label:'권한',type:'select',value:'user',options:[{value:'user',label:'일반 (담당 사업장만 입력)'},{value:'admin',label:'관리자 (OTP 필수)'}]},
@@ -1515,8 +1517,10 @@ function acctAdd(){
 function acctMenu(uid){
   var t=S.members.filter(function(m){return m.user_id===uid;})[0];if(!t)return;var self=uid===S.me.user_id;
   var m=openForm({title:t.login_id+' · '+t.name,fields:[[{id:'name',label:'이름',required:true,value:t.name},{id:'role',label:'권한',type:'select',value:t.role,options:[{value:'user',label:'일반'},{value:'admin',label:'관리자'}]}],
+    {id:'floors',label:'층별현황 열람 허용 (입주사·면적·공실 등 민감 정보 — 관리자는 항상 볼 수 있음)',type:'check',value:t.role==='admin'||!!t.can_floors},
     {id:'x',type:'info',html:'<div class="actions"><button type="button" class="btn sm" data-a="pw">비밀번호 재설정</button>'+(isLocked(t.login_id)?'<button type="button" class="btn sm" data-a="unlock">잠금 해제</button>':'')+(t.role==='admin'&&!self?'<button type="button" class="btn sm" data-a="mfa">OTP 초기화</button>':'')+(!self?'<button type="button" class="btn sm '+(t.active?'danger':'')+'" data-a="act">'+(t.active?'사용 중지':'다시 사용')+'</button>':'')+'</div>'}],
-    onSave:async function(v){await adminCall({action:'update',user_id:uid,name:v.name,role:v.role});await reloadMembers();S.keepScroll=true;render();toast('계정을 저장했습니다');}});
+    onSave:async function(v){await adminCall({action:'update',user_id:uid,name:v.name,role:v.role});
+      if(!!v.floors!==!!t.can_floors)await q(sb.from('site_members').update({can_floors:!!v.floors}).eq('user_id',uid));await reloadMembers();S.keepScroll=true;render();toast('계정을 저장했습니다');}});
   m.addEventListener('click',async function(e){var a=e.target.getAttribute&&e.target.getAttribute('data-a');if(!a)return;var bt=e.target;
     if(!bt.classList.contains('arm')){m.querySelectorAll('[data-a]').forEach(function(x){x.classList.remove('arm');});bt.classList.add('arm');bt.dataset.t=bt.textContent;bt.textContent='한 번 더 누르면 실행';return;}
     bt.disabled=true;
